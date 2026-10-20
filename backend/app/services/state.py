@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Agent, Floor, Run, Task
 from app.models.enums import RunProvider, RunStatus, TaskStatus
 from app.core.config import Settings, get_settings
-from app.schemas.state import Activity, AgentState, CurrentTask, FloorState, Motion, Trip, WebStep, WorldState, WorldStats
+from app.schemas.state import Activity, AgentState, CurrentTask, FloorState, Live, Motion, Trip, WebStep, WorldState, WorldStats
 from app.services import rules
 
 
@@ -80,6 +80,7 @@ async def build_state(session: AsyncSession, now: datetime | None = None, settin
                 status=agent.status,
                 status_since=agent.status_since,
                 activity_log=[Activity.model_validate(entry) for entry in agent.activity_log or []],
+                live=Live.model_validate(agent.live) if agent.live else None,
                 trip=(
                     Trip(kind=agent.trip_kind, started_at=agent.trip_started_at, origin_at=agent.trip_origin_at)
                     if agent.trip_kind is not None and agent.trip_started_at is not None

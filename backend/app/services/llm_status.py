@@ -15,6 +15,10 @@ def same_model(a: str, b: str) -> bool:
 
 
 async def llm_status(settings: Settings, transport: httpx.AsyncBaseTransport | None = None) -> LlmStatus:
+    if settings.executor_worker == "qoder":
+        return LlmStatus(
+            worker="qoder", ok=True, model=settings.qoder_model or None, message="Qoder CLI runs the stages", code="qoder_worker"
+        )
     if settings.executor_worker != "llm":
         return LlmStatus(
             worker=settings.executor_worker, ok=True, model=None, message="Fake executor: no model is used", code="fake_worker"

@@ -43,6 +43,14 @@ class Activity(BaseModel):
     since: datetime
 
 
+class Live(BaseModel):
+    """A heartbeat from an outside process; `detail` is what the scene shows above the agent."""
+
+    kind: str
+    detail: str = ""
+    at: datetime
+
+
 class AgentState(BaseModel):
     id: int
     name: str
@@ -54,6 +62,8 @@ class AgentState(BaseModel):
     trip: Trip | None = None
     activity_log: list[Activity] = []
     """Latest activities, oldest first (the scene replays where the agent has been lately)."""
+    live: Live | None = None
+    """Heartbeat from an outside process driving this agent; None when nothing does."""
     web_access: bool
     tools: list[str] = []
     current_task: CurrentTask | None
