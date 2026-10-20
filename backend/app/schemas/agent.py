@@ -60,7 +60,20 @@ class AgentRead(ORMModel):
     tools: list[str]
     desk_index: int | None
     status: AgentStatus
+    live: dict[str, str] | None = None
+    """Heartbeat from an outside process: {"kind", "detail", "at"}; None when nothing drives this agent."""
     archived_at: datetime | None
+
+
+class LiveUpdate(BaseModel):
+    """One heartbeat from an outside process working through this agent (the Qoder CLI's hooks send these)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: NonEmptyStr = Field(max_length=32)
+    """What it is doing, e.g. `searching`, `editing`, `running`, `idle`."""
+    detail: str = Field(default="", max_length=200)
+    """Short free text shown above the agent, e.g. "WebSearch · qoder hooks"."""
 
 
 ReleaseBlocker = Literal["tasks", "on_the_way", "away"]

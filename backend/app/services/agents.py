@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.events import publish_agent
 from app.models import Agent, Task
 from app.models.enums import AgentStatus, TaskStatus
-from app.schemas.agent import AgentCreate, AgentUpdate
+from app.schemas.agent import AgentCreate, AgentUpdate, LiveUpdate
 from app.services import rules
 from app.services.errors import ConflictError, NotFoundError
 from app.services.floors import count_active_agents, get_floor
@@ -119,6 +119,21 @@ async def update_agent(session: AsyncSession, agent_id: int, data: AgentUpdate) 
 async def _active_task_statuses(session: AsyncSession, agent_id: int) -> list[TaskStatus]:
     stmt = select(Task.status).where(Task.agent_id == agent_id, Task.status.in_(rules.ACTIVE_STATUSES))
     return list((await session.scalars(stmt)).all())
+
+
+async def set_live(session: AsyncSession, agent_id: int, data: LiveUpdate) -> Agent:
+    """One heartbeat from an outside process working through this agent (the Qoder CLI's hooks).
+
+    This only records what the outside is doing; the executor decides where the agent is and stamp the status, so
+    a heartbeat never fights a task or the director's own command.
+    """
+    agent = await get_agent(session, agent_id, lock=True)
+    ensure_active(agent)
+    agent.live = {"kind": data.kind, "detail": data.detail.strip(), "at": datetime.now(UTC).isoformat()}
+    await session.commit()
+    await session.refresh(agent)
+    publish_agent(agent.id, agent.status)
+    return agent
 
 
 async def release_agent(session: AsyncSession, agent_id: int) -> Agent:

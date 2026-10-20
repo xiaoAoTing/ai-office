@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.schemas.agent import AgentCreate, AgentRead, AgentUpdate, ReleaseAllResult
+from app.schemas.agent import AgentCreate, AgentRead, AgentUpdate, LiveUpdate, ReleaseAllResult
 from app.services import agents as service
 
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -30,6 +30,12 @@ async def release_all(db: AsyncSession = Depends(get_db)) -> ReleaseAllResult:
     one after another `EXECUTOR_RELEASE_GAP_SECONDS` apart."""
     released, kept = await service.release_all(db, get_settings().executor_release_gap_seconds)
     return ReleaseAllResult.model_validate({"released": released, "kept": kept})
+
+
+@router.post("/{agent_id}/live", response_model=AgentRead, status_code=status.HTTP_200_OK)
+async def set_agent_live(agent_id: int, data: LiveUpdate, db: AsyncSession = Depends(get_db)) -> AgentRead:
+    """One heartbeat from an outside process working through this agent; the executor moves the agent from it."""
+    return AgentRead.model_validate(await service.set_live(db, agent_id, data))
 
 
 @router.post("/{agent_id}/release", response_model=AgentRead, status_code=status.HTTP_200_OK)
