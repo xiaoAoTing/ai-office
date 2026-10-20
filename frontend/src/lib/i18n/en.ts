@@ -97,6 +97,12 @@ export const en = {
     model_timeout: "Model “{model}” wrote nothing for {seconds} s (attempts: {attempts}).",
     paused_waiting: "Paused before the model started",
     ollama_unavailable: "Ollama is not answering at {url}. Start Ollama and retry the task.",
+    qoder_missing: "The Qoder CLI “{binary}” was not found on PATH. Install it or set QODER_BIN in backend/.env.",
+    qoder_stuck: "Qoder wrote nothing for {seconds} s.",
+    qoder_timeout: "Qoder did not finish the stage within {seconds} s.",
+    qoder_error: "Qoder returned an error: {detail}",
+    qoder_failed: "Qoder ended with an error ({detail})",
+    qoder_no_text: "Qoder finished the stage without writing any text.",
     context_full:
       "The answer did not fit into the model's context window ({num_ctx} tokens): {input} tokens of input, another {output} went before the answer text. Shorten the task description or comments or raise OLLAMA_NUM_CTX in backend/.env.",
     context_full_thinking:
@@ -138,6 +144,7 @@ export const en = {
   },
   modelStatus: {
     fake_worker: "Fake executor: no model is used",
+    qoder_worker: "Qoder CLI runs the stages: no local model is used",
     ollama_down: "Ollama is not answering at {url}",
     model_missing: "Model “{model}” is not downloaded: ollama pull {model}",
     model: "model",
@@ -215,7 +222,6 @@ export const en = {
     floor: "Floor",
     floorChoice: "Choose a floor",
     allFloors: "All",
-    home: "Home",
     homeTitle: "Reset the camera",
     animation: "Animation",
     animationOn: "Arrivals and departures are animated",
@@ -225,6 +231,7 @@ export const en = {
     lifeOff: "Agents sit at their desks",
     fps: "FPS",
     fpsChoice: "Scene frame rate: fewer frames leave more of the graphics card to the model",
+    settings: "Settings",
     director: "Director's office",
     searchLabel: "Search agents and tasks",
     searchPlaceholder: "Search for an agent or a task",

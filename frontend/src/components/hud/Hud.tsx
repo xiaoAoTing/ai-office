@@ -5,7 +5,7 @@ import { useRightPanelOpen } from "@/components/panels/RightPanel";
 import { useT } from "@/lib/i18n";
 import { useUiStore } from "@/store/useUiStore";
 import { ApiStatus } from "./ApiStatus";
-import { FloorControls, PreviewBadge } from "./Controls";
+import { FloorControls, HomeButton, PreviewBadge, SettingsControl } from "./Controls";
 import { ListDock } from "./ListDock";
 import { Metrics } from "./Metrics";
 import { ModelStatus } from "./ModelStatus";
@@ -40,7 +40,7 @@ function DirectorButton() {
 
 /**
  * Overlay frame: a top row (brand, metrics and floors | search | director) and a bottom row
- * (stage ribbon | list). Both rows stop short of the right panel while it is open, so nothing overlaps.
+ * (camera home | stage ribbon | list). Both rows stop short of the right panel while it is open, so nothing overlaps.
  */
 export function Hud() {
   const panelOpen = useRightPanelOpen();
@@ -65,6 +65,7 @@ export function Hud() {
             <PreviewBadge />
             <ApiStatus />
             <ModelStatus />
+            <SettingsControl />
             <DirectorButton />
           </div>
           <Notices />
@@ -72,6 +73,9 @@ export function Hud() {
       </div>
 
       <div className="pointer-events-none absolute bottom-4 flex items-end justify-between gap-4" style={inset}>
+        <div className="shrink-0">
+          <HomeButton />
+        </div>
         <div className="min-w-0 flex-1">
           <StageRibbon />
         </div>

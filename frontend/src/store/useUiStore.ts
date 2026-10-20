@@ -19,6 +19,9 @@ type UiStore = {
   /** Camera flight request: the scene resolves the key to a position once that object is visible. */
   focus: { key: string; nonce: number } | null;
   collapsed: Record<HudBlock, boolean>;
+  /** Scene preferences popover (animation, office life, frame rate, language). */
+  settingsOpen: boolean;
+  setSettingsOpen: (open: boolean) => void;
   /** Animated arrivals and departures; off: people and cars simply appear and disappear (stage 6). */
   animation: boolean;
   /** Office life on top of the animation (coffee, lounge, strolls, talks); off: everyone at their desk. */
@@ -49,6 +52,20 @@ type UiStore = {
 const ANIMATION_KEY = "ai-office:animation";
 const LIFE_KEY = "ai-office:life";
 const FPS_KEY = "ai-office:fps";
+const COLLAPSED_KEY = "ai-office:hud-collapsed";
+
+/** Every HUD block open at first; the director's own folds are read after hydration. */
+export const DEFAULT_COLLAPSED: Record<HudBlock, boolean> = { metrics: false, list: false, ribbon: false };
+
+/** The director's last fold of each HUD block (read after hydration, like `storedAnimation`). */
+export function storedCollapsed(): Record<HudBlock, boolean> {
+  try {
+    const saved = JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "{}") as Partial<Record<HudBlock, boolean>>;
+    return { ...DEFAULT_COLLAPSED, ...saved };
+  } catch {
+    return DEFAULT_COLLAPSED;
+  }
+}
 
 /** The director's last frame rate (read after hydration, like `storedAnimation`). */
 export function storedFps(): Fps {
@@ -87,7 +104,9 @@ export const useUiStore = create<UiStore>((set, get) => ({
   taskId: null,
   directorOpen: false,
   focus: null,
-  collapsed: { metrics: false, list: false, ribbon: false },
+  collapsed: DEFAULT_COLLAPSED,
+  settingsOpen: false,
+  setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   animation: true,
   life: true,
   fps: DEFAULT_FPS,
@@ -133,10 +152,18 @@ export const useUiStore = create<UiStore>((set, get) => ({
       focus: { key: selectionKey(selection), nonce: (s.focus?.nonce ?? 0) + 1 },
     }));
   },
-  toggle: (block) => set((s) => ({ collapsed: { ...s.collapsed, [block]: !s.collapsed[block] } })),
+  toggle: (block) =>
+    set((s) => {
+      const collapsed = { ...s.collapsed, [block]: !s.collapsed[block] };
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify(collapsed));
+      } catch {}
+      return { collapsed };
+    }),
   back: () => {
     const s = get();
-    if (s.directorOpen) set({ directorOpen: false, selection: s.selection?.kind === "director" ? null : s.selection });
+    if (s.settingsOpen) set({ settingsOpen: false });
+    else if (s.directorOpen) set({ directorOpen: false, selection: s.selection?.kind === "director" ? null : s.selection });
     else if (s.taskId !== null) set({ taskId: null });
     else if (s.selection) set({ selection: null });
   },

@@ -101,6 +101,12 @@ export const ru: Shape<typeof en> = {
     model_timeout: "Модель «{model}» ничего не писала {seconds} с (попыток: {attempts}).",
     paused_waiting: "Пауза до начала работы модели",
     ollama_unavailable: "Ollama не отвечает по адресу {url}. Запустите Ollama и повторите задачу.",
+    qoder_missing: "Qoder CLI «{binary}» не найден в PATH. Установите его или укажите QODER_BIN в backend/.env.",
+    qoder_stuck: "Qoder ничего не писал {seconds} с.",
+    qoder_timeout: "Qoder не завершил этап за {seconds} с.",
+    qoder_error: "Qoder вернул ошибку: {detail}",
+    qoder_failed: "Qoder завершился с ошибкой ({detail})",
+    qoder_no_text: "Qoder закончил этап, не написав текста.",
     context_full:
       "Ответ не поместился в окно контекста модели ({num_ctx} токенов): вход {input} токенов, ещё {output} ушло до текста ответа. Сократите описание или комментарии задачи или увеличьте OLLAMA_NUM_CTX в backend/.env.",
     context_full_thinking:
@@ -142,6 +148,7 @@ export const ru: Shape<typeof en> = {
   },
   modelStatus: {
     fake_worker: "Фальшивый исполнитель: модель не используется",
+    qoder_worker: "Этапы выполняет Qoder CLI: локальная модель не используется",
     ollama_down: "Ollama не отвечает по адресу {url}",
     model_missing: "Модель «{model}» не скачана: ollama pull {model}",
     model: "модель",
@@ -219,7 +226,6 @@ export const ru: Shape<typeof en> = {
     floor: "Этаж",
     floorChoice: "Выбор этажа",
     allFloors: "Все",
-    home: "Домой",
     homeTitle: "Вернуть камеру",
     animation: "Анимация",
     animationOn: "Приезд и отъезд показываются движением",
@@ -229,6 +235,7 @@ export const ru: Shape<typeof en> = {
     lifeOff: "Сотрудники сидят за столами",
     fps: "Кадры",
     fpsChoice: "Частота кадров сцены: чем меньше, тем больше видеокарты остаётся модели",
+    settings: "Настройки",
     director: "Кабинет директора",
     searchLabel: "Поиск по сотрудникам и задачам",
     searchPlaceholder: "Поиск сотрудника или задачи",
