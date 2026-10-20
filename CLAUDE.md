@@ -58,7 +58,7 @@ Floors: the reception and the director-office floor can't be deleted (409).
 - `frontend/src/store/useWorldStore.ts` — polls `/api/v1/state` (15 s fallback, SSE refreshes it); only replaces `world` when the payload changed (`motion.server_time` ignored); keeps `clockOffset` = server clock − browser clock
 - `frontend/src/store/useTasksStore.ts` — all tasks (`GET /tasks`), reloaded when `world` changes or after an action, not every poll
 - `frontend/src/store/actions.ts` — `mutate()`: every write refreshes world + tasks right away (also on error) and bumps `revision` so open details refetch
-- `frontend/src/store/useUiStore.ts` — UI-only state: selected floor, `?preview=1`, camera home/focus requests, selection, hover, open task, director panel, collapsed HUD blocks, `animation`, `life` and `fps` (HUD switches, remembered in localStorage), `follow` (agent the camera follows); `back()` = Esc
+- `frontend/src/store/useUiStore.ts` — UI-only state: selected floor, `?preview=1`, camera home/focus requests, selection, hover, open task, director panel, collapsed HUD blocks (metrics, list, ribbon and the floor strip's tail), `animation`, `life` and `fps` (HUD switches, all remembered in localStorage), `follow` (agent the camera follows); `back()` = Esc
 - `frontend/src/scene/layout/` — **all** scene geometry as pure functions (import as `@/scene/layout`):
   `types` (Part, place), `dims` (DIM, CAMERA, FADE), `models` (primitive furniture/cars/trees as parts), `building` (floors, zones, walls, core, stairs, entrance, roof),
   `site` (roads, intersection, parking, fence, car route graph), `greenery`, `camera` (home view, wall/roof fading), `picks` (selection keys + click volumes), `walk` (walking graph, path search, obstacle footprints), `trips` (trip planner + samplers), `life` (office life planner), `moving` (lift cabin, sliding doors, barrier arms, animated figure), `assemble` (`buildScene` → parts, walls, labels, roof, routes, picks, moving props)
@@ -71,7 +71,7 @@ Floors: the reception and the director-office floor can't be deleted (409).
 - `frontend/scripts/check-i18n.mts` — `npm run check:i18n`: fails on Cyrillic in `src/` or `scripts/` outside `lib/i18n/ru.ts`, on keys missing from either dictionary and on different `{placeholders}` of a key
 - `frontend/src/scene/palette.ts` — colours; one accent (`#ff7a59`) for director-related things
 - `frontend/src/components/scene/` — R3F scene from primitives (render only, reads stores); `motion/` moves trips in one `useFrame`
-- `frontend/src/components/hud/` — HUD overlay (`Hud` frame: metrics, floors, search, director button | stage ribbon, office list), Esc hotkey
+- `frontend/src/components/hud/` — HUD overlay (`Hud` frame: metrics, floors, search, director button | camera home, stage ribbon, office list), Esc hotkey
 - `frontend/src/components/panels/` — right panels (agent, task card, hire, parking spot) and the full-screen director panel; `ui.tsx` shared primitives
 
 ## Scene
