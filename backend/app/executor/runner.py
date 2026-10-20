@@ -32,6 +32,7 @@ from app.executor.worker import (
     TaskSnapshot,
 )
 from app.models import Agent, Artifact, Profile, Run, Task, TaskComment
+from app.models.agent import live_active, live_left
 from app.models.enums import ActivityKind, AgentStatus, RunStatus, TaskStage, TaskStatus
 from app.models.profile import PROFILE_ID
 from app.services import rules
@@ -59,6 +60,8 @@ class Timings:
     """A return lasts the time already spent leaving plus this."""
     db_retry: float = 5.0
     """While the database cannot be reached, the executor tries again this often."""
+    live: float = 180.0
+    """How long a heartbeat from an outside process (`POST /agents/{id}/live`) counts as work."""
 
     def return_seconds(self, origin: datetime, started: datetime) -> float:
         """Length of a return trip; the scene computes the same (`trips.ts` → `durationOf`)."""
@@ -251,7 +254,7 @@ class Executor:
                 await s.scalars(
                     select(Agent.id).where(
                         Agent.archived_at.is_(None),
-                        or_(Agent.status != AgentStatus.OFF_SITE, Agent.id.in_(busy)),
+                        or_(Agent.status != AgentStatus.OFF_SITE, Agent.id.in_(busy), Agent.live.is_not(None)),
                     )
                 )
             ).all()
@@ -303,11 +306,14 @@ class Executor:
             loaded = await self._load(agent_id)
             if loaded is None:
                 return
-            status, since, origin, leave_at, tasks = loaded
+            status, since, origin, leave_at, tasks, live = loaded
             nxt = rules.pick_next_task(tasks)
+            working = live_active(live, now(), self._t.live)
 
             if status == AgentStatus.OFF_SITE:
-                if nxt is None:
+                if nxt is None and not working:
+                    if live is not None:
+                        await self._clear_live(agent_id)
                     return
                 await self._set_status(agent_id, AgentStatus.ARRIVING, expected=status)
             elif status in (AgentStatus.ARRIVING, AgentStatus.RETURNING):
@@ -316,7 +322,8 @@ class Executor:
                     return
                 await self._set_status(agent_id, AgentStatus.IDLE, expected=status)
             elif status == AgentStatus.LEAVING:
-                await self._leave(agent_id, since, nxt is not None)
+                # A heartbeat turns them back the same way a task does, while the car is still in its spot.
+                await self._leave(agent_id, since, nxt is not None or working)
             elif nxt is not None:
                 await self._work(agent_id, nxt.id)
             elif leave_at is not None and status in (AgentStatus.IDLE, AgentStatus.WAITING_REVIEW):
@@ -326,6 +333,8 @@ class Executor:
                     await self._set_status(agent_id, AgentStatus.LEAVING, expected=status)
                 else:
                     await self._wait_poke(agent_id, due)
+            elif working:
+                await self._live(agent_id, live)
             elif any(t.status == TaskStatus.NEEDS_REVIEW for t in tasks):
                 await self._set_status(agent_id, AgentStatus.WAITING_REVIEW, expected=status)
                 await self._wait_poke(agent_id)
@@ -333,6 +342,22 @@ class Executor:
                 # Nothing to do: the agent stays in the office until the director lets them go home.
                 await self._set_status(agent_id, AgentStatus.IDLE, expected=status)
                 await self._wait_poke(agent_id)
+
+    async def _live(self, agent_id: int, live: dict[str, str] | None) -> None:
+        """An outside process works through this agent: it stays at the desk while the heartbeats keep coming,
+        and sits down by itself once the last one is older than `Timings.live`."""
+        await self._set_status(agent_id, AgentStatus.WORKING)
+        await self._wait_poke(agent_id, live_left(live, now(), self._t.live) or None)
+
+    async def _clear_live(self, agent_id: int) -> None:
+        """Drops a stale heartbeat of an agent who is not in the office, so `_sync_workers` stops starting a
+        worker for it every tick."""
+        async with self._sessions() as s:
+            agent = await s.scalar(select(Agent).where(Agent.id == agent_id).with_for_update())
+            if agent is None or agent.live is None or live_active(agent.live, now(), self._t.live):
+                return
+            agent.live = None
+            await s.commit()
 
     async def _leave(self, agent_id: int, since: datetime, has_work: bool) -> None:
         """One step of a departure. Work that comes while the car is still in its spot turns the agent back;
@@ -357,7 +382,7 @@ class Executor:
 
     async def _load(
         self, agent_id: int
-    ) -> tuple[AgentStatus, datetime, datetime | None, datetime | None, list[Task]] | None:
+    ) -> tuple[AgentStatus, datetime, datetime | None, datetime | None, list[Task], dict[str, str] | None] | None:
         async with self._sessions() as s:
             agent = await s.scalar(
                 select(Agent).where(Agent.id == agent_id).execution_options(populate_existing=True)
@@ -369,7 +394,7 @@ class Executor:
                     select(Task).where(Task.agent_id == agent_id, Task.status.in_(rules.ACTIVE_STATUSES))
                 )
             ).all()
-            return agent.status, agent.status_since, agent.trip_origin_at, agent.leave_at, list(tasks)
+            return agent.status, agent.status_since, agent.trip_origin_at, agent.leave_at, list(tasks), agent.live
 
     async def _set_status(
         self, agent_id: int, status: AgentStatus, origin: datetime | None = None, expected: AgentStatus | None = None

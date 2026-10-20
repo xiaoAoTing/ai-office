@@ -13,7 +13,7 @@ from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.origin import OriginGuard
 from app.db.session import SessionLocal, engine
-from app.executor import Executor, FakeWorker, LlmSettings, LlmWorker, StageWorker, Timings
+from app.executor import Executor, FakeWorker, LlmSettings, LlmWorker, QoderSettings, QoderWorker, StageWorker, Timings
 from app.executor.job_tools import JobTools
 from app.executor.research import WebTools
 from app.jobs import AdzunaSource, JobSearch, ReedSource
@@ -40,6 +40,18 @@ def build_worker() -> StageWorker:
     settings = get_settings()
     if settings.executor_worker == "fake":
         return FakeWorker(settings.executor_stage_seconds)
+    if settings.executor_worker == "qoder":
+        return QoderWorker(
+            QoderSettings(
+                binary=settings.qoder_bin,
+                model=settings.qoder_model or None,
+                num_ctx=settings.qoder_num_ctx,
+                reserve_tokens=settings.qoder_reserve_tokens,
+                concurrency=settings.qoder_concurrency,
+                idle_timeout_seconds=settings.qoder_idle_timeout_seconds,
+                timeout_seconds=settings.qoder_timeout_seconds,
+            )
+        )
     web = WebTools(
         search=SearxClient(settings.searxng_url, settings.web_tool_timeout_seconds, settings.web_search_results),
         fetcher=PageFetcher(
@@ -104,6 +116,7 @@ def build_executor() -> Executor:
             progress=settings.executor_progress_seconds,
             turn_back=settings.executor_turn_back_seconds,
             return_extra=settings.executor_return_extra_seconds,
+            live=settings.live_ttl_seconds,
         ),
     )
 
