@@ -39,6 +39,8 @@ export type CurrentTask = {
 export type ActivityKind = "off_site" | "arriving" | "working" | "waiting_model" | "waiting_review" | "idle" | "leaving" | "returning";
 /** One entry of an agent's activity log (`since` ISO time). */
 export type Activity = { kind: ActivityKind; since: string };
+/** A heartbeat from an outside process: what it is doing now, said in its own words (`detail`). */
+export type Live = { kind: string; detail: string; at: string };
 
 /**
  * An agent's latest trip (kept after it ends): between the map edge and the desk, or back to the desk from a
@@ -61,6 +63,8 @@ export type AgentState = {
   trip: Trip | null;
   /** Latest activities, oldest first (office life replays them). */
   activity_log: Activity[];
+  /** Heartbeat from an outside process driving this agent (the Qoder CLI); null when nothing does. */
+  live: Live | null;
   web_access: boolean;
   /** Tool sets besides the web, e.g. "jobs". */
   tools: AgentTool[];
@@ -253,7 +257,7 @@ export type LlmStatus = {
   loaded: boolean | null;
   message: string | null;
   /** `modelStatus.<code>` in the dictionaries. */
-  code?: "fake_worker" | "ollama_down" | "model_missing" | null;
+  code?: "fake_worker" | "qoder_worker" | "ollama_down" | "model_missing" | null;
   params?: Record<string, string>;
 };
 

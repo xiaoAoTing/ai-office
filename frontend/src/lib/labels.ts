@@ -27,6 +27,16 @@ export const TASK_STATUS_COLOR: Record<TaskStatus, string> = {
 export const WAITING_FOR_MODEL_COLOR = "#6f9bc6";
 const ON_WEB_COLOR = "#2a9fd6";
 
+/** An outside process (the Qoder CLI) is driving this agent right now. */
+const LIVE_COLOR = "#e0a33c";
+
+/** What the outside process says it is doing, in its own words; shown instead of the inferred caption. */
+function liveCaption(agent: Pick<AgentState, "status" | "live">): string | null {
+  const live = agent.live;
+  if (!live || live.kind === "idle" || !live.detail.trim()) return null;
+  return agent.status === "working" || agent.status === "arriving" ? live.detail.trim() : null;
+}
+
 /** Statuses of an agent who is in the building (at the desk, resting, or walking back to the desk). */
 export const IN_OFFICE: ReadonlySet<AgentStatus> = new Set(["idle", "working", "waiting_review", "returning"]);
 
@@ -34,14 +44,18 @@ export const taskTag = (t: T, status: TaskStatus): Tag => ({ label: t(`taskStatu
 export const stageName = (t: T, stage: TaskStage) => t(`taskStage.${stage}`);
 
 /** Status tag of an agent as shown everywhere: "working" splits into working / waiting for the model. */
-export function agentTag(t: T, agent: Pick<AgentState, "status" | "current_task">): Tag {
+export function agentTag(t: T, agent: Pick<AgentState, "status" | "current_task" | "live">): Tag {
+  const live = liveCaption(agent);
+  if (live) return { label: live, color: LIVE_COLOR };
   if (agent.status === "working" && agent.current_task?.on_web) return { label: t("agentStatus.on_web"), color: ON_WEB_COLOR };
   if (agent.status === "working" && agent.current_task?.waiting_for_model) return { label: t("agentStatus.waiting_model"), color: WAITING_FOR_MODEL_COLOR };
   return { label: t(`agentStatus.${agent.status}`), color: AGENT_STATUS_COLOR[agent.status] };
 }
 
 /** Caption above an agent's head in office life, from what is really going on (never generated). */
-export function activityCaption(t: T, agent: Pick<AgentState, "status" | "current_task" | "activity_log">): string | null {
+export function activityCaption(t: T, agent: Pick<AgentState, "status" | "current_task" | "activity_log" | "live">): string | null {
+  const live = liveCaption(agent);
+  if (live) return live;
   const now = agent.activity_log.at(-1)?.kind;
   const task = agent.current_task;
   if (now === "waiting_model") return t("caption.waitingModel");
