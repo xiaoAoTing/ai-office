@@ -243,6 +243,22 @@ your review in the lounge. Open Director's office (top right) for the review que
 `python -m app.seed` without `--demo` creates only the building and the six agents with an empty profile: that is the
 starting point for your own use. Fill in the profile in Director's office → Profile.
 
+**Without Docker (macOS).** PostgreSQL is the only part of `docker-compose.yml` the app needs to boot; SearXNG only adds
+web research to a model-backed stage. Homebrew's PostgreSQL works in its place — install `postgresql@16`, start it,
+create the role and both databases, and **grant the role `CREATEDB`**, because a test session drops and recreates
+`ai_office_test` itself:
+
+```bash
+brew install postgresql@16 && brew services start postgresql@16
+createuser -h 127.0.0.1 -d postgres ai_office                     # then: ALTER ROLE ai_office CREATEDB;
+createdb -h 127.0.0.1 -U ai_office ai_office && createdb -h 127.0.0.1 -U ai_office ai_office_test
+```
+
+Point `DATABASE_URL` and `TEST_DATABASE_URL` at `127.0.0.1:5432`; the compose file publishes 5433 instead. A python.org
+framework build of Python ships without a CA bundle, so `pip` fails every HTTPS request until it is given one
+(`SSL_CERT_FILE=/etc/ssl/cert.pem`, or a `cert = …` line in `.venv/pip.conf`). The port-3000 dev server also collides
+with other local web apps: `npm run dev -- -H 127.0.0.1 -p 3001` and add that origin to `CORS_ORIGINS`.
+
 ## Use a local model
 
 1. Install Ollama and pull the default model:
@@ -281,6 +297,49 @@ latest request went and how many of today's requests are used (the keys themselv
 `JOBS_TIMEOUT_SECONDS` (15) tune the tools. The agent works in three modes, picked from the task: search ("find junior
 Python roles in Leeds"), review (paste a vacancy or its link) and application (tailored CV points and a cover letter);
 it never applies for anything.
+
+## Use the Qoder CLI instead of a model (no GPU, no Docker)
+
+`EXECUTOR_WORKER=qoder` makes each stage of a task one non-interactive
+[`qoder -p`](https://qoder.com) run, so the agents write real text without a local model, without a GPU and without
+Ollama. Set it in `backend/.env` and restart the backend:
+
+```env
+EXECUTOR_WORKER=qoder
+# QODER_BIN=qoder          # executable name or path; it must be on the backend's PATH
+# QODER_MODEL=             # empty = the CLI's own default; an agent's `model` field overrides it
+# QODER_CONCURRENCY=1      # stages sent to the CLI at the same time
+```
+
+The run is isolated from whoever starts the backend: no MCP servers, no built-in tools, no user or project settings,
+no session persistence, and its working directory is an empty temp directory rather than this project. A stage
+therefore only writes text — the research stage says that it had no web access, like a model without tools.
+
+Two things follow from the CLI reporting one line per completed message instead of a token stream: a long answer is
+silent by design, so `QODER_IDLE_TIMEOUT_SECONDS` (900) has to cover a whole draft; and stopping the backend while a
+stage runs sends it SIGTERM, which shows up as a failed stage rather than an interrupted one — pause the task first,
+or retry it afterwards.
+
+## Watch your own CLI session in the office (live bridge)
+
+Besides working through tasks, an agent can mirror a process that lives outside the app: `POST /api/v1/agents/{id}/live`
+takes `{kind, detail}` and records it as a heartbeat, and the executor treats a heartbeat younger than
+`LIVE_TTL_SECONDS` (180) as work — the agent drives in, sits at its desk, and shows `detail` on the plaque above its
+head; when the heartbeats stop, it puts its tools down and rests in the lounge. Nothing else changes: a heartbeat never
+overrides a task, and the director's commands (pause, send home) still win — a heartbeat only turns an agent back on its
+way out while the car is still in its spot, the same way a new task does.
+
+`scripts/qoder-office-live.sh` is a Qoder CLI hook that sends these heartbeats: it reads the hook JSON from stdin, maps
+the tool to a state (`WebSearch`/`WebFetch` → searching, `Read`/`Grep`/`Glob` → reading, `Edit`/`Write` → editing,
+`Bash` → running, `Agent`/`Task` → delegating, `Stop`/`SessionEnd` → idle) and posts it. It fails silently on purpose,
+because a hook must never break the CLI. Enable it in your Qoder settings, then point it at your agent:
+
+```bash
+AI_OFFICE_URL=http://127.0.0.1:8000 AI_OFFICE_AGENT_ID=7   # what the hook reads (defaults shown)
+```
+
+The label text is filtered to ASCII: the scene draws names and captions with the bundled Inter font, which has no
+glyphs past it (a `·` would simply disappear rather than show as a dot).
 
 ## Start and stop with one command (Windows)
 
