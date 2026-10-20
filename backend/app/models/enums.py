@@ -16,6 +16,7 @@ class RunProvider(StrEnum):
 
     OLLAMA = "ollama"
     ANTHROPIC = "anthropic"
+    QODER = "qoder"
     FAKE = "fake"
 
 
