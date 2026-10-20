@@ -29,6 +29,9 @@ Thumbs.db
 logs/
 .run/
 
+# stray process logs (they carry connection strings; never commit them)
+server.log
+
 # personal notes
 run.txt
 
