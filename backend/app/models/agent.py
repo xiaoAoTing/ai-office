@@ -31,6 +31,33 @@ TRIP_OF = {AgentStatus.ARRIVING: TripKind.ARRIVE, AgentStatus.LEAVING: TripKind.
 ACTIVITY_LOG_SIZE = 12
 """Latest activities kept per agent: enough for the scene to replay where the agent has been lately."""
 
+LIVE_IDLE = "idle"
+"""The heartbeat kind an outside process sends when it has stopped working: the agent may sit down at once."""
+
+
+def live_active(live: dict[str, str] | None, at: datetime, ttl_seconds: float) -> bool:
+    """A heartbeat means work until `at` + ttl, unless it says the outside process stopped."""
+    sent = _parse_time((live or {}).get("at"))
+    if not live or live.get("kind") == LIVE_IDLE or sent is None:
+        return False
+    return (at - sent).total_seconds() <= ttl_seconds
+
+
+def live_left(live: dict[str, str] | None, at: datetime, ttl_seconds: float) -> float:
+    """Seconds until the heartbeat goes stale; 0 when there is nothing to wait for."""
+    sent = _parse_time((live or {}).get("at"))
+    if sent is None:
+        return 0.0
+    return max(ttl_seconds - (at - sent).total_seconds(), 0.0)
+
+
+def _parse_time(value: object) -> datetime | None:
+    """Heartbeat times are stored ISO-8601 with an offset; anything unreadable counts as no heartbeat."""
+    try:
+        return datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+
 
 class Agent(Base):
     __tablename__ = "agents"
@@ -83,6 +110,9 @@ class Agent(Base):
     """«Release all» lets people go one after another: this agent leaves at this time (the executor does it)."""
     activity_log: Mapped[list[dict[str, str]]] = mapped_column(JSONB, default=list, server_default="[]")
     """Latest activities, oldest first: [{"kind": ActivityKind, "since": ISO time}], at most ACTIVITY_LOG_SIZE."""
+    live: Mapped[dict[str, str] | None] = mapped_column(JSONB)
+    """A heartbeat from outside: {"kind", "detail", "at"} set by `POST /agents/{id}/live` while another process
+    (the Qoder CLI) works through this agent. The executor turns fresh heartbeats into work; None when cleared."""
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     def set_status(self, status: AgentStatus, at: datetime, origin: datetime | None = None) -> None:
