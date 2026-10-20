@@ -31,8 +31,11 @@ class Settings(BaseSettings):
     executor_release_gap_seconds: float = 5.0
     """«Release all» sends people home this far apart, so the cars get through the exit barrier in time."""
     executor_tick_seconds: float = 1.0
-    executor_worker: Literal["fake", "llm"] = "fake"
+    executor_worker: Literal["fake", "llm", "qoder"] = "fake"
     executor_progress_seconds: float = 1.0
+
+    live_ttl_seconds: float = 180.0
+    """How long an outside heartbeat (`POST /agents/{id}/live`) counts as work before the agent sits down."""
 
     ollama_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3.8:27b"
@@ -48,6 +51,20 @@ class Settings(BaseSettings):
     llm_think_tokens: int = 6144
     """Room kept for the model's thinking (OLLAMA_THINK=true) on top of the expected answer."""
     llm_research_timeout_seconds: float = 900.0
+
+    # Qoder CLI (EXECUTOR_WORKER=qoder): each stage is one non-interactive `qoder -p` run
+    qoder_bin: str = "qoder"
+    qoder_model: str = ""
+    """Empty keeps the CLI's own default model; an agent's `model` field overrides it."""
+    qoder_num_ctx: int = 16384
+    """Budget the stage prompt is trimmed to, in the CLI's own token estimate."""
+    qoder_reserve_tokens: int = 6144
+    qoder_concurrency: int = 1
+    """Stages sent to the CLI at the same time."""
+    qoder_idle_timeout_seconds: float = 900.0
+    """A stage counts as stuck after this long without a new event line; the CLI reports per completed
+    message, not per token, so a long answer is silent by design."""
+    qoder_timeout_seconds: float = 1800.0
 
     searxng_url: str = "http://127.0.0.1:8888"
     web_max_tool_calls: int = 8
