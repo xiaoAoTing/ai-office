@@ -192,7 +192,10 @@ export function SettingsControl() {
   );
 }
 
-/** Reset the view: back to the home camera, no agent followed. A viewport control, so it sits in the corner. */
+/**
+ * Reset the view: back to the home camera, no agent followed. It sits with the gear in the top corner —
+ * the bottom-left one belongs to the Next.js dev overlay's issues badge in dev mode, and the two would collide.
+ */
 export function HomeButton() {
   const t = useT();
   const requestHome = useUiStore((s) => s.requestHome);

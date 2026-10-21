@@ -39,8 +39,9 @@ function DirectorButton() {
 }
 
 /**
- * Overlay frame: a top row (brand, metrics and floors | search | director) and a bottom row
- * (camera home | stage ribbon | list). Both rows stop short of the right panel while it is open, so nothing overlaps.
+ * Overlay frame: a top row (brand, metrics and floors | search | camera home, settings, director) and a
+ * bottom row (stage ribbon | list). Both rows stop short of the right panel while it is open, so nothing
+ * overlaps. The bottom-left corner is left free: the Next.js dev overlay parks its "issues" badge there.
  */
 export function Hud() {
   const panelOpen = useRightPanelOpen();
@@ -65,6 +66,7 @@ export function Hud() {
             <PreviewBadge />
             <ApiStatus />
             <ModelStatus />
+            <HomeButton />
             <SettingsControl />
             <DirectorButton />
           </div>
@@ -72,11 +74,8 @@ export function Hud() {
         </div>
       </div>
 
-      <div className="pointer-events-none absolute bottom-4 flex items-end justify-between gap-4" style={inset}>
-        <div className="shrink-0">
-          <HomeButton />
-        </div>
-        <div className="min-w-0 flex-1">
+      <div className="pointer-events-none absolute bottom-4 flex items-end justify-end gap-4" style={inset}>
+        <div className="flex min-w-0 flex-1 justify-center">
           <StageRibbon />
         </div>
         <div className="shrink-0">

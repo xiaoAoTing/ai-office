@@ -71,7 +71,7 @@ Floors: the reception and the director-office floor can't be deleted (409).
 - `frontend/scripts/check-i18n.mts` — `npm run check:i18n`: fails on Cyrillic in `src/` or `scripts/` outside `lib/i18n/ru.ts`, on keys missing from either dictionary and on different `{placeholders}` of a key
 - `frontend/src/scene/palette.ts` — colours; one accent (`#ff7a59`) for director-related things
 - `frontend/src/components/scene/` — R3F scene from primitives (render only, reads stores); `motion/` moves trips in one `useFrame`
-- `frontend/src/components/hud/` — HUD overlay (`Hud` frame: metrics, floors, search, director button | camera home, stage ribbon, office list), Esc hotkey
+- `frontend/src/components/hud/` — HUD overlay (`Hud` frame: metrics, floors, search, camera home + settings gear + director button | stage ribbon, office list; the bottom-left corner stays free for the Next.js dev overlay badge), Esc hotkey
 - `frontend/src/components/panels/` — right panels (agent, task card, hire, parking spot) and the full-screen director panel; `ui.tsx` shared primitives
 
 ## Scene
