@@ -3,6 +3,7 @@
 import type { WorldState } from "@/lib/api";
 import type { T } from "@/lib/i18n";
 import { activityCaption, agentTag } from "@/lib/labels";
+import { hashString } from "@/scene/palette";
 import { type FloorData, type SceneSpec, presence } from "@/scene/layout";
 import { useUiStore } from "@/store/useUiStore";
 import { Batches } from "./parts/Batches";
@@ -13,6 +14,7 @@ import { RoutesOverlay } from "./parts/RoutesOverlay";
 import { SceneLabels } from "./parts/SceneLabels";
 import { Walls } from "./parts/Walls";
 import { inOffice, onTrip } from "./motion/Motion";
+import { ScreenContents } from "./parts/ScreenContents";
 
 /** `animated`: agents on an animated trip are left out of the static scene (the motion layer draws them). */
 export function toFloorData(world: WorldState, preview: boolean, animated: boolean, living: boolean, t: T): FloorData[] {
@@ -34,17 +36,31 @@ export function toFloorData(world: WorldState, preview: boolean, animated: boole
       // With office life the desk plaque says what is really going on ("Writing a draft", "Reading gov.uk").
       status: (living && inOffice(a) ? activityCaption(t, a) : null) ?? agentTag(t, a).label,
       statusColor: agentTag(t, a).color,
+      screenMode: preview
+        ? (["working", "web", "review", "idle"] as const)[hashString(`preview:${a.id}`) % 4]
+        : a.status === "working"
+          ? a.current_task?.waiting_for_model || a.activity_log.at(-1)?.kind === "waiting_model"
+            ? "loading"
+            : a.current_task?.on_web || a.current_task?.web_step
+              ? "web"
+              : "working"
+          : a.status === "waiting_review"
+            ? "review"
+            : a.status === "idle"
+              ? "idle"
+              : undefined,
     })),
   }));
 }
 
-export function Building({ scene, homeZoom }: { scene: SceneSpec; homeZoom: number }) {
+export function Building({ scene, homeZoom, floors }: { scene: SceneSpec; homeZoom: number; floors: FloorData[] }) {
   const selected = useUiStore((s) => s.selectedFloor);
   const showRoutes = useUiStore((s) => s.routes);
 
   return (
     <group>
       <Batches parts={scene.parts} />
+      <ScreenContents floors={scene.building.floors} agents={floors} />
       <Walls walls={scene.walls} />
       <SceneLabels labels={scene.labels} />
       <Picking picks={scene.picks} />

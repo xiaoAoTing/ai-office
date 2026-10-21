@@ -65,7 +65,7 @@ function World({ world }: { world: WorldState }) {
         <meshStandardMaterial color={PALETTE.ground} roughness={1} />
       </mesh>
       <Suspense fallback={null}>
-        <Building scene={scene} homeZoom={home.zoom} />
+        <Building scene={scene} homeZoom={home.zoom} floors={floors} />
       </Suspense>
       <Motion world={world} scene={scene} enabled={animated} life={life} />
     </>

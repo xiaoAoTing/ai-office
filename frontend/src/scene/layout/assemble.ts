@@ -35,7 +35,7 @@ import { type Routes, type SiteLayout, routes, siteLayout } from "./site";
 import { type Box, type FloorInput, type Part, type Placement, type Rect, type Vec3, boxIn, cube, part, place, rectCenter, rectSize } from "./types";
 
 /** `status`/`statusColor` arrive already localised: the layout only places them. */
-export type AgentInput = { id: number; deskIndex: number; roleKey: string; title: string; atDesk: boolean; carParked: boolean; drawn?: boolean; status: string; statusColor: string };
+export type AgentInput = { id: number; deskIndex: number; roleKey: string; title: string; atDesk: boolean; carParked: boolean; drawn?: boolean; status: string; statusColor: string; screenMode?: "working" | "web" | "loading" | "review" | "idle" };
 export type FloorData = FloorInput & { id: number; name: string; agents: AgentInput[] };
 
 export type LabelSpec =
