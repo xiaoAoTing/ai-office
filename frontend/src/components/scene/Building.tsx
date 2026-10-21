@@ -60,7 +60,7 @@ export function Building({ scene, homeZoom, floors }: { scene: SceneSpec; homeZo
   return (
     <group>
       <Batches parts={scene.parts} />
-      <ScreenContents floors={scene.building.floors} agents={floors} />
+      <ScreenContents floors={scene.building.floors} agents={floors} selected={selected} />
       <Walls walls={scene.walls} />
       <SceneLabels labels={scene.labels} />
       <Picking picks={scene.picks} />

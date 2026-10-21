@@ -7,68 +7,69 @@ import { hashString } from "@/scene/palette";
 import { deskTransform, type AgentInput, type FloorLayout, type FloorData } from "@/scene/layout";
 import { serverNow } from "../motion/Motion";
 
-type ScreenBlock = { x: number; y: number; z: number; w: number; h: number; color: string; animate?: "cursor" | "progress" | "scroll"; seed?: number };
+type ScreenBlock = { x: number; y: number; z: number; w: number; h: number; color: string; layer: 0 | 1 | 2; animate?: "cursor" | "progress" | "scroll"; seed?: number };
 type Screen = { x: number; y: number; z: number; yaw: number; mode: NonNullable<AgentInput["screenMode"]>; variant: number };
 
-const block = (x: number, y: number, w: number, h: number, color: string, animate?: ScreenBlock["animate"], seed?: number): ScreenBlock => ({ x, y, z: 0.008, w, h, color, animate, seed });
+const block = (x: number, y: number, w: number, h: number, color: string, layer: ScreenBlock["layer"], animate?: ScreenBlock["animate"], seed?: number): ScreenBlock => ({ x, y, z: 0.0035 + layer * 0.0005, w, h, color, layer, animate, seed });
 
 function composition(mode: Screen["mode"], variant: number): ScreenBlock[] {
   const blocks: ScreenBlock[] = [];
-  const add = (x: number, y: number, w: number, h: number, color: string, animate?: ScreenBlock["animate"], seed?: number) => blocks.push(block(x, y, w, h, color, animate, seed));
-  const heading = (color: string) => add(0, 0.137, 0.58, 0.036, color);
+  const add = (x: number, y: number, w: number, h: number, color: string, layer: ScreenBlock["layer"] = 1, animate?: ScreenBlock["animate"], seed?: number) => blocks.push(block(x, y, w, h, color, layer, animate, seed));
+  const heading = (color: string) => add(0, 0.137, 0.58, 0.036, color, 1);
   if (mode === "web") {
-    add(0, 0, 0.58, 0.33, "#edf5ed"); heading("#315e49");
+    add(0, 0, 0.58, 0.33, "#edf5ed", 0); heading("#315e49");
     add(-0.218, -0.065, 0.105, 0.19, "#d8e5dc");
     add(0.04, 0.075, 0.32, 0.026, "#f8fbf8");
     add(0.04, 0.025, 0.32, 0.055, "#dcebdc");
-    for (let i = 0; i < 12; i++) add(0.015 + (i % 4) * 0.055, -0.065 - Math.floor(i / 4) * 0.04, 0.038, 0.03, ["#8fca91", "#56a66a", "#b9ddb5", "#77b982"][(i + variant) % 4], "scroll", i);
+    for (let i = 0; i < 12; i++) add(0.015 + (i % 4) * 0.055, -0.065 - Math.floor(i / 4) * 0.04, 0.038, 0.03, ["#8fca91", "#56a66a", "#b9ddb5", "#77b982"][(i + variant) % 4], 2, "scroll", i);
   } else if (mode === "working" || mode === "loading") {
-    add(0, 0, 0.58, 0.33, "#dceefa"); heading("#2f6289");
+    add(0, 0, 0.58, 0.33, "#dceefa", 0); heading("#2f6289");
     add(-0.195, 0.075, 0.09, 0.018, "#81a9c2");
     for (let i = 0; i < 4; i++) {
       const widths = [0.31, 0.38, 0.24, 0.34];
-      add(-0.065, 0.035 - i * 0.044, widths[(i + variant) % widths.length], 0.018, ["#355e78", "#3b8c9b", "#bf8356", "#4875a0"][i], "scroll", i);
+      add(-0.065, 0.035 - i * 0.044, widths[(i + variant) % widths.length], 0.018, ["#355e78", "#3b8c9b", "#bf8356", "#4875a0"][i], 2, "scroll", i);
     }
     if (mode === "loading") {
       add(0, -0.12, 0.36, 0.025, "#b8d5e7");
-      add(-0.12, -0.12, 0.08, 0.017, "#398ab0", "progress");
+      add(-0.12, -0.12, 0.08, 0.017, "#398ab0", 2, "progress");
     } else {
-      add(-0.195, -0.13, 0.022, 0.026, "#225f84", "cursor");
-      add(0, -0.13, 0.34, 0.018, "#9ab9cc");
+      add(-0.195, -0.13, 0.022, 0.026, "#225f84", 2, "cursor");
+      add(0, -0.13, 0.34, 0.018, "#9ab9cc", 2);
     }
   } else if (mode === "review") {
-    add(0, 0, 0.58, 0.33, "#eee9f8"); heading("#67558c");
+    add(0, 0, 0.58, 0.33, "#eee9f8", 0); heading("#67558c");
     add(-0.105, 0.065, 0.29, 0.052, "#c8b8e6");
     add(0.105, -0.012, 0.3, 0.052, "#ffffff");
     add(-0.105, -0.085, 0.29, 0.052, "#c8b8e6");
-    add(0.04, -0.145, 0.055, 0.018, "#8b78b0", "cursor");
-    add(-0.105, 0.065, 0.19, 0.009, "#806da5"); add(0.105, -0.012, 0.2, 0.009, "#b2a4cf");
+    add(0.04, -0.145, 0.055, 0.018, "#8b78b0", 2, "cursor");
+    add(-0.105, 0.065, 0.19, 0.009, "#806da5", 2); add(0.105, -0.012, 0.2, 0.009, "#b2a4cf", 2);
   } else {
     const kind = (variant % 3);
     if (kind === 0) {
-      add(0, 0, 0.58, 0.33, "#f4dfcf"); heading("#bb6348");
-      add(0, -0.035, 0.39, 0.17, "#6d554b"); add(0, -0.035, 0.052, 0.052, "#f3b16f");
-      add(-0.19, -0.138, 0.16, 0.012, "#cf9b82"); add(-0.105, -0.138, 0.13, 0.014, "#e99465", "progress");
+      add(0, 0, 0.58, 0.33, "#f4dfcf", 0); heading("#bb6348");
+      add(0, -0.035, 0.39, 0.17, "#6d554b"); add(0, -0.035, 0.052, 0.052, "#f3b16f", 2);
+      add(-0.19, -0.138, 0.16, 0.012, "#cf9b82", 1); add(-0.105, -0.138, 0.13, 0.014, "#e99465", 2, "progress");
       add(0.19, -0.138, 0.055, 0.04, "#e88b66");
     } else if (kind === 1) {
-      add(0, 0, 0.58, 0.33, "#f7ecd9"); heading("#a66d4f");
+      add(0, 0, 0.58, 0.33, "#f7ecd9", 0); heading("#a66d4f");
       for (let i = 0; i < 6; i++) {
         const x = -0.17 + (i % 3) * 0.17; const y = 0.045 - Math.floor(i / 3) * 0.11;
         add(x, y, 0.105, 0.075, ["#d9b987", "#c9d8c5", "#e3b5a2", "#adc5d1", "#e5d0a0", "#cfbedc"][(i + variant) % 6]);
       }
     } else {
-      add(0, 0, 0.58, 0.33, "#dce9d4"); heading("#607b59");
+      add(0, 0, 0.58, 0.33, "#dce9d4", 0); heading("#607b59");
       add(-0.08, -0.03, 0.24, 0.15, "#9dbd84"); add(0.08, -0.03, 0.08, 0.15, "#b6cf9b");
-      add(-0.08, -0.03, 0.045, 0.05, "#daaa61", "scroll", variant); add(0.2, -0.135, 0.25, 0.018, "#8ea77d");
+      add(-0.08, -0.03, 0.045, 0.05, "#daaa61", 2, "scroll", variant); add(0.2, -0.135, 0.25, 0.018, "#8ea77d", 2);
     }
   }
-  return blocks.map((item, index) => ({ ...item, z: item.z + index * 0.00025 }));
+  return blocks;
 }
 
-function instances(floors: readonly FloorLayout[], agents: readonly FloorData[]) {
+function instances(floors: readonly FloorLayout[], agents: readonly FloorData[], selected: "all" | number) {
   const specs: { x: number; y: number; z: number; yaw: number; w: number; h: number; color: string; animate?: ScreenBlock["animate"]; seed: number }[] = [];
   const floorByNumber = new Map(floors.map((floor) => [floor.number, floor]));
   for (const floorData of agents) {
+    if (selected !== "all" && floorData.number !== selected) continue;
     const floor = floorByNumber.get(floorData.number);
     if (!floor) continue;
     for (const agent of floorData.agents) {
@@ -91,10 +92,10 @@ function instances(floors: readonly FloorLayout[], agents: readonly FloorData[])
   return specs;
 }
 
-export function ScreenContents({ floors, agents }: { floors: readonly FloorLayout[]; agents: readonly FloorData[] }) {
+export function ScreenContents({ floors, agents, selected }: { floors: readonly FloorLayout[]; agents: readonly FloorData[]; selected: "all" | number }) {
   const mesh = useRef<InstancedMesh>(null);
-  const blocks = useMemo(() => instances(floors, agents), [floors, agents]);
-  const geometry = useMemo(() => new BoxGeometry(1, 1, 0.0015), []);
+  const blocks = useMemo(() => instances(floors, agents, selected), [floors, agents, selected]);
+  const geometry = useMemo(() => new BoxGeometry(1, 1, 0.0002), []);
   const material = useMemo(() => new MeshBasicMaterial({ toneMapped: false }), []);
 
   useLayoutEffect(() => {
