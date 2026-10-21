@@ -1,18 +1,20 @@
 /**
- * Interface languages: English (default) and Russian. Every string the interface shows comes from `en.ts` /
- * `ru.ts`; `ru` is typed by the shape of `en`, so a missing or extra key does not compile (and
- * `npm run check:i18n` also compares placeholders). Strings use `{name}` and a small plural form:
- * `{count, plural, one {# task} other {# tasks}}` (Russian adds `few` and `many`). Numbers in parameters are
- * formatted for the language. The choice lives in the browser (`localStorage`), English until changed.
+ * Interface languages: English (default), Russian and Chinese. Every string the interface shows comes from
+ * `en.ts` / `ru.ts` / `zh.ts`; `ru` and `zh` are typed by the shape of `en`, so a missing or extra key does not
+ * compile (and `npm run check:i18n` also compares placeholders). Strings use `{name}` and a small plural form:
+ * `{count, plural, one {# task} other {# tasks}}` (Russian adds `few` and `many`, Chinese only `other`).
+ * Numbers in parameters are formatted for the language. The choice lives in the browser (`localStorage`),
+ * English until changed.
  */
 import { useCallback } from "react";
 import { create } from "zustand";
 import { en } from "./en";
 import { ru } from "./ru";
+import { zh } from "./zh";
 
-export type Lang = "en" | "ru";
-export const LANGS: Lang[] = ["en", "ru"];
-const LOCALE: Record<Lang, string> = { en: "en-GB", ru: "ru-RU" };
+export type Lang = "en" | "ru" | "zh";
+export const LANGS: Lang[] = ["en", "ru", "zh"];
+const LOCALE: Record<Lang, string> = { en: "en-GB", ru: "ru-RU", zh: "zh-CN" };
 const STORAGE_KEY = "ai-office-lang";
 
 type Leaves<T, P extends string = ""> = {
@@ -24,7 +26,7 @@ export type Key = Leaves<typeof en>;
 export type Params = Record<string, string | number>;
 export type T = (key: Key, params?: Params) => string;
 
-const DICTS: Record<Lang, unknown> = { en, ru };
+const DICTS: Record<Lang, unknown> = { en, ru, zh };
 
 function lookup(dict: unknown, key: string): string | undefined {
   let node: unknown = dict;
@@ -67,7 +69,7 @@ export function tryTranslate(lang: Lang, key: string, params?: Params): string |
 function stored(): Lang | null {
   try {
     const value = window.localStorage.getItem(STORAGE_KEY);
-    return value === "en" || value === "ru" ? value : null;
+    return value === "en" || value === "ru" || value === "zh" ? value : null;
   } catch {
     return null;
   }

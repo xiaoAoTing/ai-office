@@ -1,16 +1,17 @@
 /**
  * The interface is fully translated (no test runner):
  *   node --experimental-strip-types --no-warnings --import ./scripts/register-ts.mjs scripts/check-i18n.mts
- * Fails when Cyrillic appears in the frontend sources outside the Russian dictionary, or when the two
- * dictionaries differ in keys or in the `{placeholders}` of a key.
+ * Fails when Cyrillic appears in the frontend sources outside the Russian dictionary, or when the
+ * `ru`/`zh` dictionaries differ from `en` in keys or in the `{placeholders}` of a key.
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { en } from "@/lib/i18n/en";
 import { ru } from "@/lib/i18n/ru";
+import { zh } from "@/lib/i18n/zh";
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/^\/(\w:)/, "$1");
-const RU_DICT = join(ROOT, "src", "lib", "i18n", "ru.ts");
+const DICTS = new Set([join(ROOT, "src", "lib", "i18n", "ru.ts"), join(ROOT, "src", "lib", "i18n", "zh.ts")]);
 const CYRILLIC = new RegExp(`[${String.fromCharCode(0x400)}-${String.fromCharCode(0x4ff)}]`);
 const problems: string[] = [];
 
@@ -23,7 +24,7 @@ function files(dir: string): string[] {
 }
 
 for (const path of [...files(join(ROOT, "src")), ...files(join(ROOT, "scripts"))]) {
-  if (path === RU_DICT) continue;
+  if (DICTS.has(path)) continue;
   readFileSync(path, "utf8")
     .split("\n")
     .forEach((line, i) => {
@@ -46,14 +47,16 @@ function leaves(tree: Tree, prefix = ""): Map<string, string> {
 const placeholders = (text: string) => [...new Set([...text.matchAll(/\{(\w+)(?=[,}])/g)].map((m) => m[1]))].sort().join(",");
 
 const english = leaves(en as Tree);
-const russian = leaves(ru as Tree);
-for (const key of english.keys()) if (!russian.has(key)) problems.push(`Missing in ru.ts: ${key}`);
-for (const key of russian.keys()) if (!english.has(key)) problems.push(`Missing in en.ts: ${key}`);
-for (const [key, text] of english) {
-  const other = russian.get(key);
-  if (other !== undefined && placeholders(text) !== placeholders(other))
-    problems.push(`Different placeholders for ${key}: en {${placeholders(text)}} / ru {${placeholders(other)}}`);
-  if (!text.trim() || (other !== undefined && !other.trim())) problems.push(`Empty text for ${key}`);
+for (const [name, other0] of [["ru", ru], ["zh", zh]] as const) {
+  const other = leaves(other0 as Tree);
+  for (const key of english.keys()) if (!other.has(key)) problems.push(`Missing in ${name}.ts: ${key}`);
+  for (const key of other.keys()) if (!english.has(key)) problems.push(`Missing in en.ts: ${name}.ts has ${key}`);
+  for (const [key, text] of english) {
+    const theirs = other.get(key);
+    if (theirs !== undefined && placeholders(text) !== placeholders(theirs))
+      problems.push(`Different placeholders for ${key}: en {${placeholders(text)}} / ${name} {${placeholders(theirs)}}`);
+    if (!text.trim() || (theirs !== undefined && !theirs.trim())) problems.push(`Empty text for ${key}`);
+  }
 }
 
 if (problems.length) {
@@ -61,4 +64,4 @@ if (problems.length) {
   console.error(`\ncheck:i18n failed: ${problems.length} problem(s)`);
   process.exit(1);
 }
-console.log(`ok  ${english.size} keys in both dictionaries, same placeholders; no Cyrillic outside ru.ts`);
+console.log(`ok  ${english.size} keys in en/ru/zh, same placeholders; no Cyrillic outside the dictionaries`);
