@@ -10,7 +10,10 @@ import { serverNow } from "../motion/Motion";
 type ScreenBlock = { x: number; y: number; z: number; w: number; h: number; color: string; layer: 0 | 1 | 2; animate?: "cursor" | "progress" | "scroll"; seed?: number };
 type Screen = { x: number; y: number; z: number; yaw: number; mode: NonNullable<AgentInput["screenMode"]>; variant: number };
 
-const block = (x: number, y: number, w: number, h: number, color: string, layer: ScreenBlock["layer"], animate?: ScreenBlock["animate"], seed?: number): ScreenBlock => ({ x, y, z: 0.0026, w, h, color, layer, animate, seed });
+// The monitor's blue face is centered 0.022 units in front of the panel, with
+// 0.005 units of thickness. Keep UI planes exactly on its front face; a small
+// world-space gap is visible as a floating sheet when orbiting the camera.
+const block = (x: number, y: number, w: number, h: number, color: string, layer: ScreenBlock["layer"], animate?: ScreenBlock["animate"], seed?: number): ScreenBlock => ({ x, y, z: 0.0025, w, h, color, layer, animate, seed });
 
 function composition(mode: Screen["mode"], variant: number): ScreenBlock[] {
   const blocks: ScreenBlock[] = [];
@@ -97,7 +100,13 @@ export function ScreenContents({ floors, agents, selected }: { floors: readonly 
   const blocks = useMemo(() => instances(floors, agents, selected), [floors, agents, selected]);
   const blocksByLayer = useMemo(() => [0, 1, 2].map((layer) => blocks.filter((item) => item.layer === layer)), [blocks]);
   const geometry = useMemo(() => new PlaneGeometry(1, 1), []);
-  const material = useMemo(() => new MeshBasicMaterial({ toneMapped: false, depthWrite: false }), []);
+  const material = useMemo(() => new MeshBasicMaterial({
+    toneMapped: false,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  }), []);
 
   useLayoutEffect(() => {
     const matrix = new Matrix4(); const quaternion = new Quaternion(); const euler = new Euler();
