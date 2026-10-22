@@ -37,23 +37,27 @@ export function seatedPerson(outfit: string): Part[] {
   ];
 }
 
-function monitor(x: number, yaw: number, on: boolean, ghost: boolean): Part[] {
+// The display is recessed into the monitor shell: its front is flush with the
+// shell's 0.035-thick front face.
+export const MONITOR_SCREEN = { width: 0.59, height: 0.34, surfaceOffset: 0.0175, depth: 0.005 } as const;
+
+function monitor(x: number, yaw: number, on: boolean, ghost: boolean, hasContent: boolean): Part[] {
   const f = ghost ? "ghost" : "matte";
   const frame = ghost ? PALETTE.free : PALETTE.dark;
   const c = Math.cos(yaw);
   const s = Math.sin(yaw);
   const at = (dx: number, dz: number): [number, number] => [x + dx * c + dz * s, -dx * s + dz * c];
-  const [sx, sz] = at(0, 0.022);
+  const [sx, sz] = at(0, MONITOR_SCREEN.surfaceOffset - MONITOR_SCREEN.depth / 2);
   return [
     cube([x, 0.76, -0.27], [0.24, 0.02, 0.16], frame, f),
     cube([x, 0.88, -0.29], [0.05, 0.24, 0.05], ghost ? PALETTE.free : PALETTE.metal, f),
     cube([x, 1.11, -0.28], [0.64, 0.39, 0.035], frame, f, [0, yaw, 0]),
-    ...(ghost ? [] : [cube([sx, 1.11, -0.28 + sz], [0.59, 0.34, 0.005], on ? PALETTE.screenOn : PALETTE.screen, on ? "screen" : "matte", [0, yaw, 0])]),
+    ...((ghost || hasContent) ? [] : [cube([sx, 1.11, -0.28 + sz], [MONITOR_SCREEN.width, MONITOR_SCREEN.height, MONITOR_SCREEN.depth], on ? PALETTE.screenOn : PALETTE.screen, on ? "screen" : "matte", [0, yaw, 0])]),
   ];
 }
 
 /** Desk with two monitors, speakers, keyboard and a water bottle; the user sits on +z facing −z. */
-export function workstation(occupied: boolean, present: boolean): Part[] {
+export function workstation(occupied: boolean, present: boolean, hasScreenContent = false): Part[] {
   const ghost = !occupied;
   const f = ghost ? "ghost" : "matte";
   const { w, d, h } = DIM.desk;
@@ -63,8 +67,8 @@ export function workstation(occupied: boolean, present: boolean): Part[] {
     cube([0, h - 0.025, 0], [w, 0.05, d], top, f),
     ...[-1, 1].map((s) => cube([s * (w / 2 - 0.04), (h - 0.05) / 2, 0], [0.06, h - 0.05, d * 0.92], frame, f)),
     cube([0, 0.48, -d / 2 + 0.04], [w - 0.12, 0.42, 0.03], frame, f),
-    ...monitor(-0.34, 0.14, present, ghost),
-    ...monitor(0.34, -0.14, present, ghost),
+    ...monitor(-0.34, 0.14, present, ghost, hasScreenContent),
+    ...monitor(0.34, -0.14, present, ghost, hasScreenContent),
     ...officeChair(ghost ? PALETTE.free : PALETTE.chair, ghost).map((p) => ({
       ...p,
       position: [p.position[0], p.position[1], p.position[2] + DIM.chair.offset] as Vec3,

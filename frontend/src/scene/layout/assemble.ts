@@ -75,7 +75,7 @@ function workstations(floor: FloorData, f: FloorLayout, parts: Part[], labels: L
     const t = deskTransform(i);
     const agent = byDesk.get(i);
     const [dx, , dz] = t.desk;
-    parts.push(...place(M.workstation(agent !== undefined, agent?.atDesk ?? false), at(dx, f.baseY, dz)));
+    parts.push(...place(M.workstation(agent !== undefined, agent?.atDesk ?? false, !!agent?.atDesk && !!agent.screenMode), at(dx, f.baseY, dz)));
     picks.push(deskPick(f, i, agent ? { kind: "agent", id: agent.id } : { kind: "desk", floorId: floor.id, deskIndex: i }));
     if (!agent) continue;
     if (agent.atDesk && agent.drawn !== false) parts.push(...place(M.seatedPerson(outfitColor(agent.roleKey)), at(t.seat[0], f.baseY + t.seat[1], t.seat[2])));

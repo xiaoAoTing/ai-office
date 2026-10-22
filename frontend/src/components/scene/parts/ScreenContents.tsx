@@ -4,29 +4,29 @@ import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { Color, Euler, InstancedMesh, Matrix4, MeshBasicMaterial, PlaneGeometry, Quaternion, Vector3 } from "three";
 import { hashString } from "@/scene/palette";
-import { deskTransform, type AgentInput, type FloorLayout, type FloorData } from "@/scene/layout";
+import { deskTransform, MONITOR_SCREEN, type AgentInput, type FloorLayout, type FloorData } from "@/scene/layout";
 import { serverNow } from "../motion/Motion";
 
 type ScreenBlock = { x: number; y: number; z: number; w: number; h: number; color: string; layer: 0 | 1 | 2; animate?: "cursor" | "progress" | "scroll"; seed?: number };
 type Screen = { x: number; y: number; z: number; yaw: number; mode: NonNullable<AgentInput["screenMode"]>; variant: number };
 
-// The monitor's blue face is centered 0.022 units in front of the panel, with
-// 0.005 units of thickness. Keep UI planes exactly on its front face; a small
-// world-space gap is visible as a floating sheet when orbiting the camera.
-const block = (x: number, y: number, w: number, h: number, color: string, layer: ScreenBlock["layer"], animate?: ScreenBlock["animate"], seed?: number): ScreenBlock => ({ x, y, z: 0.0025, w, h, color, layer, animate, seed });
+// Content backgrounds are the display surface for active monitors. The blue
+// screen box is omitted for these monitors, so there is no backing face for the
+// UI planes to float above or fight with at oblique camera angles.
+const block = (x: number, y: number, w: number, h: number, color: string, layer: ScreenBlock["layer"], animate?: ScreenBlock["animate"], seed?: number): ScreenBlock => ({ x, y, z: 0, w, h, color, layer, animate, seed });
 
 function composition(mode: Screen["mode"], variant: number): ScreenBlock[] {
   const blocks: ScreenBlock[] = [];
   const add = (x: number, y: number, w: number, h: number, color: string, layer: ScreenBlock["layer"] = 1, animate?: ScreenBlock["animate"], seed?: number) => blocks.push(block(x, y, w, h, color, layer, animate, seed));
   const heading = (color: string) => add(0, 0.137, 0.58, 0.036, color, 1);
   if (mode === "web") {
-    add(0, 0, 0.58, 0.33, "#edf5ed", 0); heading("#315e49");
+    add(0, 0, MONITOR_SCREEN.width, MONITOR_SCREEN.height, "#edf5ed", 0); heading("#315e49");
     add(-0.218, -0.065, 0.105, 0.19, "#d8e5dc");
     add(0.04, 0.075, 0.32, 0.026, "#f8fbf8");
     add(0.04, 0.025, 0.32, 0.055, "#dcebdc");
     for (let i = 0; i < 12; i++) add(0.015 + (i % 4) * 0.055, -0.065 - Math.floor(i / 4) * 0.04, 0.038, 0.03, ["#8fca91", "#56a66a", "#b9ddb5", "#77b982"][(i + variant) % 4], 2, "scroll", i);
   } else if (mode === "working" || mode === "loading") {
-    add(0, 0, 0.58, 0.33, "#dceefa", 0); heading("#2f6289");
+    add(0, 0, MONITOR_SCREEN.width, MONITOR_SCREEN.height, "#dceefa", 0); heading("#2f6289");
     add(-0.195, 0.075, 0.09, 0.018, "#81a9c2");
     for (let i = 0; i < 4; i++) {
       const widths = [0.31, 0.38, 0.24, 0.34];
@@ -40,7 +40,7 @@ function composition(mode: Screen["mode"], variant: number): ScreenBlock[] {
       add(0, -0.13, 0.34, 0.018, "#9ab9cc", 2);
     }
   } else if (mode === "review") {
-    add(0, 0, 0.58, 0.33, "#eee9f8", 0); heading("#67558c");
+    add(0, 0, MONITOR_SCREEN.width, MONITOR_SCREEN.height, "#eee9f8", 0); heading("#67558c");
     add(-0.105, 0.065, 0.29, 0.052, "#c8b8e6");
     add(0.105, -0.012, 0.3, 0.052, "#ffffff");
     add(-0.105, -0.085, 0.29, 0.052, "#c8b8e6");
@@ -49,18 +49,18 @@ function composition(mode: Screen["mode"], variant: number): ScreenBlock[] {
   } else {
     const kind = (variant % 3);
     if (kind === 0) {
-      add(0, 0, 0.58, 0.33, "#f4dfcf", 0); heading("#bb6348");
+      add(0, 0, MONITOR_SCREEN.width, MONITOR_SCREEN.height, "#f4dfcf", 0); heading("#bb6348");
       add(0, -0.035, 0.39, 0.17, "#6d554b"); add(0, -0.035, 0.052, 0.052, "#f3b16f", 2);
       add(-0.19, -0.138, 0.16, 0.012, "#cf9b82", 1); add(-0.105, -0.138, 0.13, 0.014, "#e99465", 2, "progress");
       add(0.19, -0.138, 0.055, 0.04, "#e88b66");
     } else if (kind === 1) {
-      add(0, 0, 0.58, 0.33, "#f7ecd9", 0); heading("#a66d4f");
+      add(0, 0, MONITOR_SCREEN.width, MONITOR_SCREEN.height, "#f7ecd9", 0); heading("#a66d4f");
       for (let i = 0; i < 6; i++) {
         const x = -0.17 + (i % 3) * 0.17; const y = 0.045 - Math.floor(i / 3) * 0.11;
         add(x, y, 0.105, 0.075, ["#d9b987", "#c9d8c5", "#e3b5a2", "#adc5d1", "#e5d0a0", "#cfbedc"][(i + variant) % 6]);
       }
     } else {
-      add(0, 0, 0.58, 0.33, "#dce9d4", 0); heading("#607b59");
+      add(0, 0, MONITOR_SCREEN.width, MONITOR_SCREEN.height, "#dce9d4", 0); heading("#607b59");
       add(-0.08, -0.03, 0.24, 0.15, "#9dbd84"); add(0.08, -0.03, 0.08, 0.15, "#b6cf9b");
       add(-0.08, -0.03, 0.045, 0.05, "#daaa61", 2, "scroll", variant); add(0.2, -0.135, 0.25, 0.018, "#8ea77d", 2);
     }
@@ -81,8 +81,8 @@ function instances(floors: readonly FloorLayout[], agents: readonly FloorData[],
       for (const side of [-1, 1]) {
         const yaw = side < 0 ? 0.14 : -0.14;
         const monitorX = side * 0.34;
-        const x = deskX + monitorX * Math.cos(yaw) + 0.022 * Math.sin(yaw);
-        const z = deskZ - monitorX * Math.sin(yaw) + 0.022 * Math.cos(yaw) - 0.28;
+        const x = deskX + monitorX * Math.cos(yaw) + MONITOR_SCREEN.surfaceOffset * Math.sin(yaw);
+        const z = deskZ - monitorX * Math.sin(yaw) + MONITOR_SCREEN.surfaceOffset * Math.cos(yaw) - 0.28;
         const screen: Screen = { x, y: floor.baseY + 1.11, z, yaw, mode: agent.screenMode, variant: hashString(`${agent.id}:${side}`) };
         for (const item of composition(screen.mode, screen.variant)) {
           const wx = screen.x + item.x * Math.cos(yaw) + item.z * Math.sin(yaw);
@@ -103,6 +103,8 @@ export function ScreenContents({ floors, agents, selected }: { floors: readonly 
   const material = useMemo(() => new MeshBasicMaterial({
     toneMapped: false,
     depthWrite: false,
+    // The display itself is flush with the shell face; bias only its depth
+    // value so it wins the coplanar depth test without moving in world space.
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
