@@ -2,7 +2,7 @@
 
 import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
-import { BoxGeometry, Color, Euler, InstancedMesh, Matrix4, MeshBasicMaterial, Quaternion, Vector3 } from "three";
+import { Color, Euler, InstancedMesh, Matrix4, MeshBasicMaterial, PlaneGeometry, Quaternion, Vector3 } from "three";
 import { hashString } from "@/scene/palette";
 import { deskTransform, type AgentInput, type FloorLayout, type FloorData } from "@/scene/layout";
 import { serverNow } from "../motion/Motion";
@@ -10,7 +10,7 @@ import { serverNow } from "../motion/Motion";
 type ScreenBlock = { x: number; y: number; z: number; w: number; h: number; color: string; layer: 0 | 1 | 2; animate?: "cursor" | "progress" | "scroll"; seed?: number };
 type Screen = { x: number; y: number; z: number; yaw: number; mode: NonNullable<AgentInput["screenMode"]>; variant: number };
 
-const block = (x: number, y: number, w: number, h: number, color: string, layer: ScreenBlock["layer"], animate?: ScreenBlock["animate"], seed?: number): ScreenBlock => ({ x, y, z: 0.0035 + layer * 0.0005, w, h, color, layer, animate, seed });
+const block = (x: number, y: number, w: number, h: number, color: string, layer: ScreenBlock["layer"], animate?: ScreenBlock["animate"], seed?: number): ScreenBlock => ({ x, y, z: 0.0026, w, h, color, layer, animate, seed });
 
 function composition(mode: Screen["mode"], variant: number): ScreenBlock[] {
   const blocks: ScreenBlock[] = [];
@@ -66,7 +66,7 @@ function composition(mode: Screen["mode"], variant: number): ScreenBlock[] {
 }
 
 function instances(floors: readonly FloorLayout[], agents: readonly FloorData[], selected: "all" | number) {
-  const specs: { x: number; y: number; z: number; yaw: number; w: number; h: number; color: string; animate?: ScreenBlock["animate"]; seed: number }[] = [];
+  const specs: { x: number; y: number; z: number; yaw: number; w: number; h: number; color: string; layer: ScreenBlock["layer"]; animate?: ScreenBlock["animate"]; seed: number }[] = [];
   const floorByNumber = new Map(floors.map((floor) => [floor.number, floor]));
   for (const floorData of agents) {
     if (selected !== "all" && floorData.number !== selected) continue;
@@ -84,7 +84,7 @@ function instances(floors: readonly FloorLayout[], agents: readonly FloorData[],
         for (const item of composition(screen.mode, screen.variant)) {
           const wx = screen.x + item.x * Math.cos(yaw) + item.z * Math.sin(yaw);
           const wz = screen.z - item.x * Math.sin(yaw) + item.z * Math.cos(yaw);
-          specs.push({ x: wx, y: screen.y + item.y, z: wz, yaw, w: item.w, h: item.h, color: item.color, animate: item.animate, seed: item.seed ?? 0 });
+          specs.push({ x: wx, y: screen.y + item.y, z: wz, yaw, w: item.w, h: item.h, color: item.color, layer: item.layer, animate: item.animate, seed: item.seed ?? 0 });
         }
       }
     }
@@ -93,47 +93,63 @@ function instances(floors: readonly FloorLayout[], agents: readonly FloorData[],
 }
 
 export function ScreenContents({ floors, agents, selected }: { floors: readonly FloorLayout[]; agents: readonly FloorData[]; selected: "all" | number }) {
-  const mesh = useRef<InstancedMesh>(null);
+  const meshes = useRef<(InstancedMesh | null)[]>([]);
   const blocks = useMemo(() => instances(floors, agents, selected), [floors, agents, selected]);
-  const geometry = useMemo(() => new BoxGeometry(1, 1, 0.0002), []);
-  const material = useMemo(() => new MeshBasicMaterial({ toneMapped: false }), []);
+  const blocksByLayer = useMemo(() => [0, 1, 2].map((layer) => blocks.filter((item) => item.layer === layer)), [blocks]);
+  const geometry = useMemo(() => new PlaneGeometry(1, 1), []);
+  const material = useMemo(() => new MeshBasicMaterial({ toneMapped: false, depthWrite: false }), []);
 
   useLayoutEffect(() => {
-    const target = mesh.current;
-    if (!target) return;
     const matrix = new Matrix4(); const quaternion = new Quaternion(); const euler = new Euler();
     const position = new Vector3(); const scale = new Vector3(); const color = new Color();
-    blocks.forEach((item, index) => {
-      euler.set(0, item.yaw, 0); quaternion.setFromEuler(euler);
-      matrix.compose(position.set(item.x, item.y, item.z), quaternion, scale.set(item.w, item.h, 1));
-      target.setMatrixAt(index, matrix); target.setColorAt(index, color.set(item.color));
+    blocksByLayer.forEach((layerBlocks, layer) => {
+      const target = meshes.current[layer];
+      if (!target) return;
+      layerBlocks.forEach((item, index) => {
+        euler.set(0, item.yaw, 0); quaternion.setFromEuler(euler);
+        matrix.compose(position.set(item.x, item.y, item.z), quaternion, scale.set(item.w, item.h, 1));
+        target.setMatrixAt(index, matrix); target.setColorAt(index, color.set(item.color));
+      });
+      target.count = layerBlocks.length;
+      target.instanceMatrix.needsUpdate = true;
+      if (target.instanceColor) target.instanceColor.needsUpdate = true;
+      target.computeBoundingSphere();
     });
-    target.count = blocks.length; target.instanceMatrix.needsUpdate = true;
-    if (target.instanceColor) target.instanceColor.needsUpdate = true;
-    target.computeBoundingSphere();
-  }, [blocks]);
+  }, [blocksByLayer]);
 
   useFrame(() => {
-    const target = mesh.current;
-    if (!target) return;
     const now = serverNow(); const matrix = new Matrix4(); const quaternion = new Quaternion(); const euler = new Euler();
     const position = new Vector3(); const scale = new Vector3(); const color = new Color();
-    let changed = false;
-    blocks.forEach((item, index) => {
-      if (!item.animate) return;
-      const pulse = (Math.sin(now * 2.4 + item.seed * 1.7) + 1) / 2;
-      if (item.animate === "cursor" && pulse < 0.48) {
-        target.setColorAt(index, color.set("#c7dbeb")); changed = true; return;
-      }
-      if (item.animate === "cursor") target.setColorAt(index, color.set(item.color));
-      const width = item.animate === "progress" ? item.w * (0.35 + pulse * 0.65) : item.w;
-      const y = item.animate === "scroll" ? item.y + Math.sin(now * 1.8 + item.seed) * 0.012 : item.y;
-      euler.set(0, item.yaw, 0); quaternion.setFromEuler(euler);
-      matrix.compose(position.set(item.x + (item.w - width) * Math.cos(item.yaw) / 2, y, item.z - (item.w - width) * Math.sin(item.yaw) / 2), quaternion, scale.set(width, item.h, 1));
-      target.setMatrixAt(index, matrix); changed = true;
+    blocksByLayer.forEach((layerBlocks, layer) => {
+      const target = meshes.current[layer];
+      if (!target) return;
+      let changed = false;
+      layerBlocks.forEach((item, index) => {
+        if (!item.animate) return;
+        const pulse = (Math.sin(now * 2.4 + item.seed * 1.7) + 1) / 2;
+        if (item.animate === "cursor" && pulse < 0.48) {
+          target.setColorAt(index, color.set("#c7dbeb")); changed = true; return;
+        }
+        if (item.animate === "cursor") target.setColorAt(index, color.set(item.color));
+        const width = item.animate === "progress" ? item.w * (0.35 + pulse * 0.65) : item.w;
+        const y = item.animate === "scroll" ? item.y + Math.sin(now * 1.8 + item.seed) * 0.012 : item.y;
+        euler.set(0, item.yaw, 0); quaternion.setFromEuler(euler);
+        matrix.compose(position.set(item.x + (item.w - width) * Math.cos(item.yaw) / 2, y, item.z - (item.w - width) * Math.sin(item.yaw) / 2), quaternion, scale.set(width, item.h, 1));
+        target.setMatrixAt(index, matrix); changed = true;
+      });
+      if (changed) { target.instanceMatrix.needsUpdate = true; if (target.instanceColor) target.instanceColor.needsUpdate = true; }
     });
-    if (changed) { target.instanceMatrix.needsUpdate = true; if (target.instanceColor) target.instanceColor.needsUpdate = true; }
   });
 
-  return <instancedMesh ref={mesh} args={[geometry, material, Math.max(1, blocks.length)]} frustumCulled={false} />;
+  return <>
+    {blocksByLayer.map((layerBlocks, layer) => (
+      <instancedMesh
+        key={layer}
+        ref={(mesh) => { meshes.current[layer] = mesh; }}
+        args={[geometry, material, Math.max(1, layerBlocks.length)]}
+        frustumCulled={false}
+        renderOrder={layer + 1}
+      />
+    ))}
+  </>;
 }
