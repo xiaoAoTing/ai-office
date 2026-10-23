@@ -2,7 +2,7 @@
 
 import { useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useState } from "react";
-import { CanvasTexture, LinearFilter, MeshBasicMaterial, SRGBColorSpace } from "three";
+import { CanvasTexture, LessEqualDepth, LinearFilter, MeshBasicMaterial, SRGBColorSpace } from "three";
 import { hashString } from "@/scene/palette";
 import { deskTransform, MONITOR_SCREEN, type AgentInput, type FloorLayout, type FloorData } from "@/scene/layout";
 import { serverNow } from "../motion/Motion";
@@ -140,11 +140,8 @@ function createSurface(screen: Screen): ScreenSurface | null {
   const material = new MeshBasicMaterial({
     map: texture,
     toneMapped: false,
-    depthWrite: false,
-    // Bias only the depth value to win the coplanar test with the monitor frame.
-    polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1,
+    depthWrite: true,
+    depthFunc: LessEqualDepth,
   });
   const surface: ScreenSurface = { screen, context, texture, material, animated: screen.blocks.some((item) => item.animate !== undefined) };
   paintScreen(surface, serverNow());

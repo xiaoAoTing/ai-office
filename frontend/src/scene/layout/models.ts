@@ -37,8 +37,7 @@ export function seatedPerson(outfit: string): Part[] {
   ];
 }
 
-// The display is recessed into the monitor shell: its front is flush with the
-// shell's 0.035-thick front face.
+// Keep screen content exactly on the monitor shell's front face.
 export const MONITOR_SCREEN = { width: 0.59, height: 0.34, surfaceOffset: 0.0175, depth: 0.005 } as const;
 
 function monitor(x: number, yaw: number, on: boolean, ghost: boolean, hasContent: boolean): Part[] {
