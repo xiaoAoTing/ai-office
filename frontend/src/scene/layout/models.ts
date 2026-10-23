@@ -37,8 +37,10 @@ export function seatedPerson(outfit: string): Part[] {
   ];
 }
 
-// Keep screen content exactly on the monitor shell's front face.
-export const MONITOR_SCREEN = { width: 0.59, height: 0.34, surfaceOffset: 0.0175, depth: 0.005 } as const;
+// The display sits inside the bezel, 7 mm behind the monitor's outer front face.
+export const MONITOR_SCREEN = { width: 0.59, height: 0.34, surfaceOffset: 0.0105, depth: 0.005 } as const;
+
+const MONITOR_FRAME = { width: 0.64, height: 0.39, depth: 0.035 } as const;
 
 function monitor(x: number, yaw: number, on: boolean, ghost: boolean, hasContent: boolean): Part[] {
   const f = ghost ? "ghost" : "matte";
@@ -47,10 +49,27 @@ function monitor(x: number, yaw: number, on: boolean, ghost: boolean, hasContent
   const s = Math.sin(yaw);
   const at = (dx: number, dz: number): [number, number] => [x + dx * c + dz * s, -dx * s + dz * c];
   const [sx, sz] = at(0, MONITOR_SCREEN.surfaceOffset - MONITOR_SCREEN.depth / 2);
+  const shellBack = -MONITOR_FRAME.depth / 2;
+  const displayBack = MONITOR_SCREEN.surfaceOffset - MONITOR_SCREEN.depth;
+  const frameBack = displayBack - shellBack;
+  const bezelDepth = MONITOR_FRAME.depth - frameBack;
+  const bezelCenter = displayBack + bezelDepth / 2;
+  const sideBezel = (MONITOR_FRAME.width - MONITOR_SCREEN.width) / 2;
+  const topBezel = (MONITOR_FRAME.height - MONITOR_SCREEN.height) / 2;
+  const [bodyX, bodyZ] = at(0, shellBack + frameBack / 2);
   return [
     cube([x, 0.76, -0.27], [0.24, 0.02, 0.16], frame, f),
     cube([x, 0.88, -0.29], [0.05, 0.24, 0.05], ghost ? PALETTE.free : PALETTE.metal, f),
-    cube([x, 1.11, -0.28], [0.64, 0.39, 0.035], frame, f, [0, yaw, 0]),
+    // Back shell plus four front bezel rails form a real inset opening for the display.
+    cube([bodyX, 1.11, -0.28 + bodyZ], [MONITOR_FRAME.width, MONITOR_FRAME.height, frameBack], frame, f, [0, yaw, 0]),
+    ...[-1, 1].map((side) => {
+      const [railX, railZ] = at(side * (MONITOR_FRAME.width / 2 - sideBezel / 2), bezelCenter);
+      return cube([railX, 1.11, -0.28 + railZ], [sideBezel, MONITOR_SCREEN.height, bezelDepth], frame, f, [0, yaw, 0]);
+    }),
+    ...[-1, 1].map((side) => {
+      const [railX, railZ] = at(0, bezelCenter);
+      return cube([railX, 1.11 + side * (MONITOR_FRAME.height / 2 - topBezel / 2), -0.28 + railZ], [MONITOR_FRAME.width, topBezel, bezelDepth], frame, f, [0, yaw, 0]);
+    }),
     ...((ghost || hasContent) ? [] : [cube([sx, 1.11, -0.28 + sz], [MONITOR_SCREEN.width, MONITOR_SCREEN.height, MONITOR_SCREEN.depth], on ? PALETTE.screenOn : PALETTE.screen, on ? "screen" : "matte", [0, yaw, 0])]),
   ];
 }
