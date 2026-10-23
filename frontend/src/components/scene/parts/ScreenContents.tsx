@@ -1,21 +1,30 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
-import { useLayoutEffect, useMemo, useRef } from "react";
-import { Color, Euler, InstancedMesh, Matrix4, MeshBasicMaterial, PlaneGeometry, Quaternion, Vector3 } from "three";
+import { useLayoutEffect, useMemo, useState } from "react";
+import { CanvasTexture, LinearFilter, MeshBasicMaterial, SRGBColorSpace } from "three";
 import { hashString } from "@/scene/palette";
 import { deskTransform, MONITOR_SCREEN, type AgentInput, type FloorLayout, type FloorData } from "@/scene/layout";
 import { serverNow } from "../motion/Motion";
 
-type ScreenBlock = { x: number; y: number; z: number; w: number; h: number; color: string; layer: 0 | 1 | 2; animate?: "cursor" | "progress" | "scroll"; seed?: number };
-type Screen = { x: number; y: number; z: number; yaw: number; mode: NonNullable<AgentInput["screenMode"]>; variant: number };
+type ScreenBlock = { x: number; y: number; w: number; h: number; color: string; layer: 0 | 1 | 2; animate?: "cursor" | "progress" | "scroll"; seed?: number };
+type Screen = { key: string; x: number; y: number; z: number; yaw: number; blocks: ScreenBlock[] };
+type ScreenSurface = {
+  screen: Screen;
+  context: CanvasRenderingContext2D;
+  texture: CanvasTexture;
+  material: MeshBasicMaterial;
+  animated: boolean;
+};
 
-// Content backgrounds are the display surface for active monitors. The blue
-// screen box is omitted for these monitors, so there is no backing face for the
-// UI planes to float above or fight with at oblique camera angles.
-const block = (x: number, y: number, w: number, h: number, color: string, layer: ScreenBlock["layer"], animate?: ScreenBlock["animate"], seed?: number): ScreenBlock => ({ x, y, z: 0, w, h, color, layer, animate, seed });
+// All UI is painted into one texture per monitor. The texture is the monitor's
+// display face, so content can never become a stack of coplanar 3D rectangles.
+const TEXTURE_WIDTH = 512;
+const TEXTURE_HEIGHT = Math.round(TEXTURE_WIDTH * MONITOR_SCREEN.height / MONITOR_SCREEN.width);
 
-function composition(mode: Screen["mode"], variant: number): ScreenBlock[] {
+const block = (x: number, y: number, w: number, h: number, color: string, layer: ScreenBlock["layer"], animate?: ScreenBlock["animate"], seed?: number): ScreenBlock => ({ x, y, w, h, color, layer, animate, seed });
+
+function composition(mode: NonNullable<AgentInput["screenMode"]>, variant: number): ScreenBlock[] {
   const blocks: ScreenBlock[] = [];
   const add = (x: number, y: number, w: number, h: number, color: string, layer: ScreenBlock["layer"] = 1, animate?: ScreenBlock["animate"], seed?: number) => blocks.push(block(x, y, w, h, color, layer, animate, seed));
   const heading = (color: string) => add(0, 0.137, 0.58, 0.036, color, 1);
@@ -47,7 +56,7 @@ function composition(mode: Screen["mode"], variant: number): ScreenBlock[] {
     add(0.04, -0.145, 0.055, 0.018, "#8b78b0", 2, "cursor");
     add(-0.105, 0.065, 0.19, 0.009, "#806da5", 2); add(0.105, -0.012, 0.2, 0.009, "#b2a4cf", 2);
   } else {
-    const kind = (variant % 3);
+    const kind = variant % 3;
     if (kind === 0) {
       add(0, 0, MONITOR_SCREEN.width, MONITOR_SCREEN.height, "#f4dfcf", 0); heading("#bb6348");
       add(0, -0.035, 0.39, 0.17, "#6d554b"); add(0, -0.035, 0.052, 0.052, "#f3b16f", 2);
@@ -65,11 +74,11 @@ function composition(mode: Screen["mode"], variant: number): ScreenBlock[] {
       add(-0.08, -0.03, 0.045, 0.05, "#daaa61", 2, "scroll", variant); add(0.2, -0.135, 0.25, 0.018, "#8ea77d", 2);
     }
   }
-  return blocks;
+  return blocks.sort((a, b) => a.layer - b.layer);
 }
 
-function instances(floors: readonly FloorLayout[], agents: readonly FloorData[], selected: "all" | number) {
-  const specs: { x: number; y: number; z: number; yaw: number; w: number; h: number; color: string; layer: ScreenBlock["layer"]; animate?: ScreenBlock["animate"]; seed: number }[] = [];
+function screensFor(floors: readonly FloorLayout[], agents: readonly FloorData[], selected: "all" | number): Screen[] {
+  const screens: Screen[] = [];
   const floorByNumber = new Map(floors.map((floor) => [floor.number, floor]));
   for (const floorData of agents) {
     if (selected !== "all" && floorData.number !== selected) continue;
@@ -81,86 +90,100 @@ function instances(floors: readonly FloorLayout[], agents: readonly FloorData[],
       for (const side of [-1, 1]) {
         const yaw = side < 0 ? 0.14 : -0.14;
         const monitorX = side * 0.34;
-        const x = deskX + monitorX * Math.cos(yaw) + MONITOR_SCREEN.surfaceOffset * Math.sin(yaw);
-        const z = deskZ - monitorX * Math.sin(yaw) + MONITOR_SCREEN.surfaceOffset * Math.cos(yaw) - 0.28;
-        const screen: Screen = { x, y: floor.baseY + 1.11, z, yaw, mode: agent.screenMode, variant: hashString(`${agent.id}:${side}`) };
-        for (const item of composition(screen.mode, screen.variant)) {
-          const wx = screen.x + item.x * Math.cos(yaw) + item.z * Math.sin(yaw);
-          const wz = screen.z - item.x * Math.sin(yaw) + item.z * Math.cos(yaw);
-          specs.push({ x: wx, y: screen.y + item.y, z: wz, yaw, w: item.w, h: item.h, color: item.color, layer: item.layer, animate: item.animate, seed: item.seed ?? 0 });
-        }
+        const variant = hashString(`${agent.id}:${side}`);
+        screens.push({
+          key: `${floorData.number}:${agent.id}:${side}`,
+          x: deskX + monitorX * Math.cos(yaw) + MONITOR_SCREEN.surfaceOffset * Math.sin(yaw),
+          y: floor.baseY + 1.11,
+          z: deskZ - monitorX * Math.sin(yaw) + MONITOR_SCREEN.surfaceOffset * Math.cos(yaw) - 0.28,
+          yaw,
+          blocks: composition(agent.screenMode, variant),
+        });
       }
     }
   }
-  return specs;
+  return screens;
 }
 
-export function ScreenContents({ floors, agents, selected }: { floors: readonly FloorLayout[]; agents: readonly FloorData[]; selected: "all" | number }) {
-  const meshes = useRef<(InstancedMesh | null)[]>([]);
-  const blocks = useMemo(() => instances(floors, agents, selected), [floors, agents, selected]);
-  const blocksByLayer = useMemo(() => [0, 1, 2].map((layer) => blocks.filter((item) => item.layer === layer)), [blocks]);
-  const geometry = useMemo(() => new PlaneGeometry(1, 1), []);
-  const material = useMemo(() => new MeshBasicMaterial({
+function paintScreen(surface: ScreenSurface, now: number) {
+  const { context, screen } = surface;
+  const scaleX = TEXTURE_WIDTH / MONITOR_SCREEN.width;
+  const scaleY = TEXTURE_HEIGHT / MONITOR_SCREEN.height;
+  context.clearRect(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT);
+  for (const item of screen.blocks) {
+    const pulse = item.animate ? (Math.sin(now * 2.4 + (item.seed ?? 0) * 1.7) + 1) / 2 : 1;
+    const color = item.animate === "cursor" && pulse < 0.48 ? "#c7dbeb" : item.color;
+    const width = item.animate === "progress" ? item.w * (0.35 + pulse * 0.65) : item.w;
+    const x = item.x + (item.w - width) / 2;
+    const y = item.animate === "scroll" ? item.y + Math.sin(now * 1.8 + (item.seed ?? 0)) * 0.012 : item.y;
+    const left = Math.round(TEXTURE_WIDTH / 2 + (x - width / 2) * scaleX);
+    const top = Math.round(TEXTURE_HEIGHT / 2 - (y + item.h / 2) * scaleY);
+    const right = Math.round(TEXTURE_WIDTH / 2 + (x + width / 2) * scaleX);
+    const bottom = Math.round(TEXTURE_HEIGHT / 2 - (y - item.h / 2) * scaleY);
+    context.fillStyle = color;
+    context.fillRect(left, top, right - left, bottom - top);
+  }
+  surface.texture.needsUpdate = true;
+}
+
+function createSurface(screen: Screen): ScreenSurface | null {
+  const canvas = document.createElement("canvas");
+  canvas.width = TEXTURE_WIDTH;
+  canvas.height = TEXTURE_HEIGHT;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.magFilter = LinearFilter;
+  texture.minFilter = LinearFilter;
+  texture.generateMipmaps = false;
+  const material = new MeshBasicMaterial({
+    map: texture,
     toneMapped: false,
     depthWrite: false,
-    // The display itself is flush with the shell face; bias only its depth
-    // value so it wins the coplanar depth test without moving in world space.
+    // Bias only the depth value to win the coplanar test with the monitor frame.
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
-  }), []);
+  });
+  const surface: ScreenSurface = { screen, context, texture, material, animated: screen.blocks.some((item) => item.animate !== undefined) };
+  paintScreen(surface, serverNow());
+  return surface;
+}
+
+export function ScreenContents({ floors, agents, selected }: { floors: readonly FloorLayout[]; agents: readonly FloorData[]; selected: "all" | number }) {
+  const screens = useMemo(() => screensFor(floors, agents, selected), [floors, agents, selected]);
+  const [surfaces, setSurfaces] = useState<ScreenSurface[]>([]);
 
   useLayoutEffect(() => {
-    const matrix = new Matrix4(); const quaternion = new Quaternion(); const euler = new Euler();
-    const position = new Vector3(); const scale = new Vector3(); const color = new Color();
-    blocksByLayer.forEach((layerBlocks, layer) => {
-      const target = meshes.current[layer];
-      if (!target) return;
-      layerBlocks.forEach((item, index) => {
-        euler.set(0, item.yaw, 0); quaternion.setFromEuler(euler);
-        matrix.compose(position.set(item.x, item.y, item.z), quaternion, scale.set(item.w, item.h, 1));
-        target.setMatrixAt(index, matrix); target.setColorAt(index, color.set(item.color));
-      });
-      target.count = layerBlocks.length;
-      target.instanceMatrix.needsUpdate = true;
-      if (target.instanceColor) target.instanceColor.needsUpdate = true;
-      target.computeBoundingSphere();
-    });
-  }, [blocksByLayer]);
+    const next = screens.map(createSurface).filter((surface): surface is ScreenSurface => surface !== null);
+    setSurfaces(next);
+    return () => {
+      for (const surface of next) {
+        surface.material.dispose();
+        surface.texture.dispose();
+      }
+    };
+  }, [screens]);
 
   useFrame(() => {
-    const now = serverNow(); const matrix = new Matrix4(); const quaternion = new Quaternion(); const euler = new Euler();
-    const position = new Vector3(); const scale = new Vector3(); const color = new Color();
-    blocksByLayer.forEach((layerBlocks, layer) => {
-      const target = meshes.current[layer];
-      if (!target) return;
-      let changed = false;
-      layerBlocks.forEach((item, index) => {
-        if (!item.animate) return;
-        const pulse = (Math.sin(now * 2.4 + item.seed * 1.7) + 1) / 2;
-        if (item.animate === "cursor" && pulse < 0.48) {
-          target.setColorAt(index, color.set("#c7dbeb")); changed = true; return;
-        }
-        if (item.animate === "cursor") target.setColorAt(index, color.set(item.color));
-        const width = item.animate === "progress" ? item.w * (0.35 + pulse * 0.65) : item.w;
-        const y = item.animate === "scroll" ? item.y + Math.sin(now * 1.8 + item.seed) * 0.012 : item.y;
-        euler.set(0, item.yaw, 0); quaternion.setFromEuler(euler);
-        matrix.compose(position.set(item.x + (item.w - width) * Math.cos(item.yaw) / 2, y, item.z - (item.w - width) * Math.sin(item.yaw) / 2), quaternion, scale.set(width, item.h, 1));
-        target.setMatrixAt(index, matrix); changed = true;
-      });
-      if (changed) { target.instanceMatrix.needsUpdate = true; if (target.instanceColor) target.instanceColor.needsUpdate = true; }
-    });
+    const now = serverNow();
+    for (const surface of surfaces) {
+      if (surface.animated) paintScreen(surface, now);
+    }
   });
 
   return <>
-    {blocksByLayer.map((layerBlocks, layer) => (
-      <instancedMesh
-        key={layer}
-        ref={(mesh) => { meshes.current[layer] = mesh; }}
-        args={[geometry, material, Math.max(1, layerBlocks.length)]}
-        frustumCulled={false}
-        renderOrder={layer + 1}
-      />
+    {surfaces.map((surface) => (
+      <mesh
+        key={surface.screen.key}
+        position={[surface.screen.x, surface.screen.y, surface.screen.z]}
+        rotation={[0, surface.screen.yaw, 0]}
+        renderOrder={1}
+      >
+        <planeGeometry args={[MONITOR_SCREEN.width, MONITOR_SCREEN.height]} />
+        <primitive object={surface.material} attach="material" />
+      </mesh>
     ))}
   </>;
 }
